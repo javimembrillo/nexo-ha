@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#6957e9"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>NEXO</title>
+<!-- NEXO 2026-08-31b · layout fix -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#182238;--muted:#778298;--canvas:#f6f7fb;--surface:#fff;
+  --line:#e8ebf2;--violet:#6957e9;--soft:#eeecff;--red:#ee6d76;--green:#47bb86;
+  --sidebar:250px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);font-family:"DM Sans",system-ui,sans-serif;overflow-x:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}button:disabled{cursor:default}
+h1,h2,h3,.display{font-family:Manrope,"DM Sans",system-ui,sans-serif}
+img{max-width:100%;display:block}
+.shell{min-height:100dvh;display:flex;align-items:stretch}
+aside{display:none}
+main{flex:1;min-width:0;width:100%;padding:28px 20px 96px}
+@media(min-width:900px){
+  aside{display:flex;flex-direction:column;flex:0 0 var(--sidebar);width:var(--sidebar);position:sticky;top:0;height:100dvh;background:#fff;border-right:1px solid var(--line);padding:32px 20px}
+  main{padding:40px 48px 80px;max-width:1180px}
+  .mobnav{display:none!important}
+}
+aside .brand{display:flex;align-items:center;gap:10px;padding:0 10px;margin-bottom:40px;font-weight:800;letter-spacing:.11em;font-size:19px;font-family:Manrope,sans-serif}
+aside .logo{width:32px;height:32px;border-radius:10px;background:var(--violet);color:#fff;display:grid;place-items:center;letter-spacing:0;flex-shrink:0}
+aside nav{display:grid;gap:6px}
+aside nav button,aside .nav-set{display:flex;align-items:center;gap:12px;border:0;background:0;border-radius:11px;padding:12px;text-align:left;font-weight:600;color:var(--muted);width:100%}
+aside nav button.on,aside .nav-set.on{background:var(--soft);color:var(--violet)}
+aside .foot{margin-top:auto}
+.dot{width:8px;height:8px;border-radius:50%;background:#c8ced8;display:inline-block;margin-right:8px}
+.dot.on{background:var(--green);box-shadow:0 0 0 4px #e0f5ec}
+header.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:32px}
+.kicker{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+h1{margin:0;font-size:clamp(24px,3vw,32px);letter-spacing:-.04em}
+.iconbtn{width:42px;height:42px;border:0;border-radius:50%;background:var(--surface);box-shadow:0 12px 34px rgba(31,42,70,.07);display:grid;place-items:center;flex-shrink:0}
+.avatar{width:42px;height:42px;border:0;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;flex-shrink:0}
+.hero{position:relative;min-height:202px;border-radius:24px;background:linear-gradient(135deg,#302b65,#6256c9);color:#fff;padding:32px;display:flex;justify-content:space-between;align-items:center;gap:16px;overflow:hidden}
+.hero p{color:#e4e2fb;max-width:400px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0 40px}
+.stat,.card,.lcard{background:var(--surface);border-radius:17px;box-shadow:0 12px 34px rgba(31,42,70,.07);border:1px solid transparent;min-width:0}
+.stat{min-height:104px;padding:16px 20px;text-align:left;border:0}
+.stat b{display:block;font-size:21px;letter-spacing:-.02em}
+.stat span{font-size:12px;color:var(--muted)}
+.ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;margin-bottom:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:1100px){.stats,.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){
+  .stats,.grid4,.grid3,.grid2{grid-template-columns:minmax(0,1fr)}
+  .hero{flex-direction:column;align-items:flex-start}
+}
+.lcard{position:relative;min-height:160px;padding:18px;display:flex;flex-direction:column}
+.lcard.on{border-color:#e1ddff}
+.lcard h3{margin:16px 0 4px;font-size:14px}
+.lcard p{margin:0;font-size:12px;color:var(--muted)}
+.lcard .act{position:absolute;right:16px;bottom:16px}
+.chiprow{display:flex;gap:8px;overflow:auto;padding-bottom:4px;margin-bottom:20px}
+.chip{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:8px 14px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip.on{background:var(--violet);border-color:var(--violet);color:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:0;border-radius:11px;padding:10px 16px;font-size:12px;font-weight:700;background:var(--violet);color:#fff}
+.btn.g{background:#efeff5;color:#4b556b}
+.toggle{width:38px;height:22px;border:0;border-radius:999px;background:#dfe3eb;position:relative;flex-shrink:0}
+.toggle.on{background:var(--violet)}
+.toggle i{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #a6afc0;transition:.15s}
+.toggle.on i{left:19px}
+.card{padding:20px;border-radius:19px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+input[type=range]{width:100%;accent-color:var(--violet);margin:12px 0 0}
+input:not([type=range]):not([type=checkbox]):not([type=radio]),select,textarea{
+  display:block;width:100%;max-width:100%;min-width:0;margin-top:8px;
+  border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fcfcfe;color:var(--ink)
+}
+input[type=password]{letter-spacing:.08em}
+label.f{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:16px 0 0}
+.empty{padding:36px;text-align:center;color:var(--muted);border:1px dashed #d8dce6;border-radius:17px;background:#fff}
+.cam{position:relative;overflow:hidden;background:#0f1420;aspect-ratio:16/9;border-radius:13px}
+.cam img,.cam .ph{width:100%;height:100%;object-fit:cover;display:block}
+.badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700;letter-spacing:.08em}
+.clock{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.45);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-family:ui-monospace,monospace}
+.callbar{position:absolute;left:0;right:0;bottom:0;background:#df3d55;color:#fff;text-align:center;padding:8px;font-size:12px;font-weight:700}
+.pulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.65}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+.pill{border-radius:999px;padding:8px 12px;font-size:10px;font-weight:700;letter-spacing:.08em;background:#fcebed;color:#df3d55}
+.pill.hot{background:#df3d55;color:#fff}
+.overlay{position:fixed;inset:0;background:rgba(24,34,56,.75);display:grid;place-items:center;z-index:40;padding:16px}
+.overlay .box{width:min(860px,100%);background:#fff;border-radius:19px;overflow:hidden}
+.overlay .hd{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;gap:8px;flex-wrap:wrap}
+.darkp{background:#0f1420;padding:16px;display:grid;gap:12px;grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr)}
+@media(max-width:700px){.darkp{grid-template-columns:minmax(0,1fr)}}
+.note{font-size:12px;color:#4a417c;background:#f3f1ff;border-radius:14px;padding:16px;line-height:1.55;overflow-wrap:anywhere}
+.note ol{margin:8px 0 0;padding-left:18px}
+code{background:#fff;padding:1px 4px;border-radius:4px;font-size:11px;word-break:break-all}
+.mobnav{position:fixed;left:0;right:0;bottom:0;height:73px;display:flex;justify-content:space-around;background:rgba(255,255,255,.95);border-top:1px solid var(--line);padding:8px 4px max(8px,env(safe-area-inset-bottom));backdrop-filter:blur(8px);z-index:5}
+.mobnav button{border:0;background:0;color:var(--muted);font-size:10px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:44px}
+.mobnav button.on{color:var(--violet)}
+.toast{position:fixed;top:16px;right:16px;z-index:30;background:#df3d55;color:#fff;border:0;border-radius:999px;padding:10px 16px;font-weight:700;font-size:12px}
+.wheel{display:flex;flex-direction:column;align-items:center}
+.wheel b{font-size:34px}
+.muted{color:var(--muted);font-size:13px;line-height:1.5}
+.tiny{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.hide{display:none!important}
+.modes{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.modes button{border:0;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;background:#f3f4f7;color:var(--muted)}
+.modes button.on{background:var(--violet);color:#fff}
+.brandp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media(max-width:640px){.brandp{grid-template-columns:minmax(0,1fr)}}
+.brandp button{border:1px solid var(--line);background:#fcfcfe;border-radius:12px;padding:12px;text-align:left;min-width:0;width:100%}
+.brandp button.on{border-color:var(--violet);background:var(--soft)}
+.brandp b{display:block;font-size:14px}
+.brandp span{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
+.formcard{max-width:720px;width:100%}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside>
+  <div class="brand"><span class="logo">N</span>NEXO</div>
+  <nav id="sidenav"></nav>
+  <div class="foot">
+    <button class="nav-set" data-view="ajustes" id="nav-set">Ajustes</button>
+    <p class="muted" style="margin:24px 0 0 10px;font-size:12px"><span class="dot" id="dot"></span><span id="connlab">Sin conectar</span></p>
+  </div>
+</aside>
+<main>
+  <header class="top">
+    <div>
+      <p class="kicker" id="date"></p>
+      <h1 id="title">Buenos días</h1>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <button class="iconbtn" id="btn-ref" title="Actualizar">↻</button>
+      <button class="avatar" id="btn-set" title="Ajustes">J</button>
+    </div>
+  </header>
+  <div id="view"></div>
+</main>
+<nav class="mobnav" id="mobnav"></nav>
+</div>
+<script>
+(() => {
+const ROOMS = [
+  {id:"salon",label:"Salón",keys:["salon"]},
+  {id:"porche",label:"Porche",keys:["porche"]},
+  {id:"dormitorio",label:"Dormitorio",keys:["dormitorio"]},
+  {id:"entrada",label:"Entrada",keys:["entrada","recibidor"]},
+  {id:"vestidor",label:"Vestidor",keys:["vestidor"]},
+  {id:"martin",label:"Cuarto de Martín",keys:["martin","cuarto de martin"]},
+  {id:"terraza",label:"Terraza",keys:["terraza"]},
+];
+const NAV = [
+  ["inicio","Inicio"],["luces","Luces"],["persianas","Persianas"],
+  ["clima","Clima"],["entrada","Entrada"],["coches","Coches"],
+];
+const TITLES = {inicio:"Buenos días",luces:"Luces",clima:"El clima",persianas:"Luz natural",entrada:"Entrada",coches:"Coches",ajustes:"Ajustes"};
+const SK = "nexo_ha_v3";
+const LK = "nexo_doorbell_log";
+
+const fold = s => (s||"").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
+const blob = e => fold(`${e.entity_id} ${e.attributes.friendly_name||""}`);
+const name = e => e.attributes.friendly_name || (e.entity_id.split(".").pop()||"").replace(/_/g," ");
+const dom = e => e.entity_id.split(".")[0];
+const by = (list,d) => list.filter(e => e.entity_id.startsWith(d+"."));
+const on = e => !["off","closed","unavailable","unknown","idle","unlocked"].includes(e.state);
+const car = e => /tesla|renault|twingo|megane|zoe|vehicle|coche|wallbox|maletero|trunk/.test(blob(e));
+const isGroup = e => Array.isArray(e.attributes.entity_id) && e.attributes.entity_id.some(id => String(id).startsWith("light.")) || /grupo|group/.test(blob(e));
+const roomOf = e => ROOMS.find(r => r.keys.some(k => blob(e).includes(fold(k))));
+const unit = e => e?.attributes.unit_of_measurement ? " "+e.attributes.unit_of_measurement : "";
+
+function numberedBlinds(list){
+  return by(list,"cover").map(e => {
+    const m = blob(e).match(/persiana(?:\s*|_)([1-6])\b/);
+    return m ? {e,n:+m[1]} : null;
+  }).filter(Boolean).sort((a,b)=>a.n-b.n).map(x=>x.e);
+}
+function porchGroup(list){
+  return list.find(e => /toldo/.test(blob(e)) && /porche/.test(blob(e)))
+    || list.find(e => /toldo/.test(blob(e)) && dom(e)==="cover");
+}
+function autoSw(list,...needles){
+  return list.find(e => ["switch","input_boolean","automation"].includes(dom(e)) && needles.every(n => blob(e).includes(fold(n))));
+}
+function heat(list){
+  const c = by(list,"climate").filter(e => !car(e));
+  return c.find(e => /calefaccion|altherma|suelo|radiador|bomba de calor/.test(blob(e)))
+    || c.find(e => (e.attributes.hvac_modes||[]).includes("heat") && !/aire|ac\b/.test(blob(e)));
+}
+function acG(list){
+  return list.find(e => !car(e) && /aires acondicionados|grupo.*aire|aires_acondicionados/.test(blob(e)));
+}
+function acs(list){
+  const g = acG(list), h = heat(list);
+  return by(list,"climate").filter(e => {
+    if (car(e) || e.entity_id===g?.entity_id || e.entity_id===h?.entity_id) return false;
+    return (e.attributes.hvac_modes||[]).includes("cool") || /(?:^|[\s_])aire(?:s)?(?:\s|$)|ac\b|split|daikin/.test(blob(e));
+  });
+}
+function findNamed(list,brand,...needles){
+  return list.find(e => blob(e).includes(fold(brand)) && needles.some(n => blob(e).includes(fold(n))));
+}
+function tracker(list,brand){
+  return list.find(e => e.entity_id.startsWith("device_tracker.") && blob(e).includes(fold(brand)));
+}
+function isBell(e, cfg){
+  if (cfg && e.entity_id===cfg) return true;
+  if (!["binary_sensor","event","switch"].includes(dom(e))) return false;
+  if (/motion|movimiento/.test(blob(e)) && !/_ding|ding$/.test(e.entity_id)) return false;
+  return /portero|timbre|doorbell|\bding\b|_ding/.test(blob(e));
+}
+function doorbell(list,cfg){
+  if (cfg){ const x=list.find(e=>e.entity_id===cfg); if(x) return x; }
+  const c = list.filter(isBell);
+  return c.find(e => dom(e)==="event" && /ding/.test(blob(e))) || c.find(e => /ding|doorbell/.test(blob(e))) || c[0];
+}
+function recent(e, ms=28000){ const t=Date.parse(e.state); return Number.isFinite(t) && Date.now()-t<ms; }
+function ringing(e){ if(!e) return false; return dom(e)==="event" ? recent(e) : ["on","open","ringing","detected"].includes(e.state); }
+function camera(list,cfg,...keys){
+  if (cfg?.startsWith("camera.")){ const x=list.find(e=>e.entity_id===cfg); if(x) return x; }
+  const cams = list.filter(e => dom(e)==="camera" && !/last_recording/.test(blob(e)));
+  const needles = keys.length?keys:["portero","doorbell","ring","live_view"];
+  return cams.map(e => {
+    const t=blob(e); return {e, score:(needles.some(k=>t.includes(fold(k)))?2:0)+(/live_view/.test(t)?1:0)};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score)[0]?.e;
+}
+function doorLock(list){
+  return list.find(e => !car(e) && ["lock","switch","button"].includes(dom(e)) &&
+    /portero|abrir puerta|abrepuerta|door.?opener|open.?door|door.?lock|cerradura|apriporta|strike|intercom/.test(blob(e)));
+}
+function suggest(list){
+  const ding = list.find(e => dom(e)==="event" && /ding/.test(blob(e)))
+    || list.find(e => dom(e)==="binary_sensor" && /ding|doorbell|timbre|portero/.test(blob(e)));
+  const cam = list.find(e => dom(e)==="camera" && /live_view/.test(blob(e)))
+    || list.find(e => dom(e)==="camera" && /ring|doorbell|portero/.test(blob(e)) && !/last_recording/.test(blob(e)));
+  return {ding:ding?.entity_id||"", camera:cam?.entity_id||""};
+}
+function isRing(S,list){
+  if (S.porterBrand==="ring") return true;
+  if (S.porterBrand==="ip") return false;
+  const hay = fold(`${S.doorbellEntity} ${S.porterCamera} ${list.map(blob).join(" ")}`);
+  return /(?:^|[_\s.])ring(?:[_\s.]|$)|live_view|_ding|\.ding\b/.test(hay);
+}
+
+function defaults(){
+  const local = location.pathname.includes("/local/");
+  return {
+    url: location.origin,
+    token: "",
+    porterBrand: "ring",
+    doorbellEntity: "",
+    porterCamera: "",
+    talkUrl: "",
+    entryCamera: "",
+    carsCamera: "",
+    sameOrigin: local,
+  };
+}
+function loadS(){ try{ return {...defaults(), ...JSON.parse(localStorage.getItem(SK)||"{}")}; }catch{ return defaults(); } }
+function loadL(){ try{ return JSON.parse(localStorage.getItem(LK)||"[]"); }catch{ return []; } }
+
+const state = {
+  view: "inicio",
+  lightFilter: "Todos",
+  S: loadS(),
+  entities: [],
+  connected: false,
+  message: "",
+  talking: false,
+  logs: loadL(),
+  lastBell: null,
+  lastStamp: "",
+};
+let stopWs = null;
+
+const $ = sel => document.querySelector(sel);
+function ha(){ return (state.S.url||location.origin).replace(/\/$/,""); }
+async function api(path, method="GET", body){
+  const r = await fetch(ha()+path, {
+    method,
+    headers: {Authorization:"Bearer "+state.S.token, "Content-Type":"application/json"},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) throw new Error(r.status+" "+r.statusText);
+  if (r.status===200) return r.json();
+  return null;
+}
+function camStill(e, configured){
+  const id = (configured||"").startsWith("http") ? "" : ((configured||"").startsWith("camera.")?configured:e?.entity_id||"");
+  if ((configured||"").startsWith("http")) return configured;
+  if (!id) return "";
+  const tok = e?.attributes?.access_token || state.S.token;
+  return `${ha()}/api/camera_proxy/${id}?token=${encodeURIComponent(tok)}`;
+}
+function camStream(e, configured){
+  const id = (configured||"").startsWith("camera.")?configured:e?.entity_id||"";
+  if ((configured||"").startsWith("http")) return configured;
+  if (!id) return "";
+  const tok = e?.attributes?.access_token || state.S.token;
+  return `${ha()}/api/camera_proxy_stream/${id}?token=${encodeURIComponent(tok)}`;
+}
+
+function chime(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const t = ctx.currentTime;
+    [0,0.22].forEach((o,i)=>{
+      const osc=ctx.createOscillator(), g=ctx.createGain();
+      osc.frequency.value=i?880:659;
+      g.gain.setValueAtTime(0.0001,t+o);
+      g.gain.exponentialRampToValueAtTime(0.18,t+o+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+o+0.18);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(t+o); osc.stop(t+o+0.2);
+    });
+    setTimeout(()=>ctx.close(),700);
+  }catch{}
+}
+
+async function act(e, service, extra={}){
+  if (!e) return;
+  await api(`/api/services/${dom(e)}/${service}`,"POST",{entity_id:e.entity_id, ...extra});
+  setTimeout(()=>refresh().catch(()=>{}),600);
+}
+async function toggle(e){
+  if (!e) return;
+  const isOn = !["off","closed","locked","idle"].includes(e.state);
+  if (dom(e)==="lock") return act(e, isOn?"lock":"unlock");
+  return act(e, isOn?"turn_off":"turn_on");
+}
+
+function ring(fromDevice){
+  const now=new Date();
+  const item={time:now.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}), date:now.toLocaleDateString("es-ES",{day:"2-digit",month:"short"})};
+  state.logs=[item,...state.logs].slice(0,50);
+  localStorage.setItem(LK, JSON.stringify(state.logs));
+  chime();
+  state.view="entrada";
+  if (fromDevice) state.talking=true;
+  state.lastBell=true;
+  render();
+}
+
+function applyEntity(e){
+  const i=state.entities.findIndex(x=>x.entity_id===e.entity_id);
+  if (i>=0) state.entities[i]=e; else state.entities.push(e);
+  if (!isBell(e, state.S.doorbellEntity)) { render(); return; }
+  if (dom(e)==="event"){
+    if (e.state && e.state!==state.lastStamp){
+      state.lastStamp=e.state;
+      if (recent(e)) ring(true);
+    }
+  } else {
+    const r=ringing(e);
+    if (r && state.lastBell!==true) ring(true);
+    state.lastBell=r;
+  }
+  render();
+}
+
+function catchBell(list){
+  const b=doorbell(list, state.S.doorbellEntity);
+  if (!b) return;
+  if (dom(b)==="event"){
+    if (b.state && b.state!==state.lastStamp && recent(b)){ state.lastStamp=b.state; state.lastBell=true; ring(true); }
+    else if (b.state && b.state!==state.lastStamp){ state.lastStamp=b.state; state.lastBell=false; }
+    return;
+  }
+  const r=ringing(b);
+  if (r && state.lastBell!==true) ring(true);
+  state.lastBell=r;
+}
+
+async function refresh(){
+  if (!state.S.token) return;
+  state.entities = await api("/api/states");
+  state.connected=true;
+  catchBell(state.entities);
+  render();
+}
+
+function wsConnect(){
+  stopWs?.();
+  if (!state.S.token) return;
+  let sock=null, id=1, closed=false, live=false;
+  const open=()=>{
+    if (closed) return;
+    const u=new URL(ha());
+    u.protocol=u.protocol==="https:"?"wss:":"ws:";
+    u.pathname="/api/websocket"; u.search="";
+    try{ sock=new WebSocket(u.toString()); }catch{ return; }
+    sock.addEventListener("message", ev=>{
+      const msg=JSON.parse(ev.data);
+      if (msg.type==="auth_required") sock.send(JSON.stringify({type:"auth",access_token:state.S.token}));
+      if (msg.type==="auth_ok"){
+        live=true;
+        sock.send(JSON.stringify({id:id++,type:"get_states"}));
+        sock.send(JSON.stringify({id:id++,type:"subscribe_events",event_type:"state_changed"}));
+      }
+      if (msg.type==="result" && Array.isArray(msg.result)){ state.entities=msg.result; state.connected=true; catchBell(msg.result); render(); }
+      if (msg.type==="event" && msg.event?.data?.new_state) applyEntity(msg.event.data.new_state);
+    });
+    sock.addEventListener("close", ()=>{ live=false; if(!closed) setTimeout(open,4000); });
+  };
+  open();
+  const poll=setInterval(()=>{ if(!closed && !live) refresh().catch(()=>{}); },4000);
+  stopWs=()=>{ closed=true; clearInterval(poll); sock?.close(); };
+}
+
+async function connect(){
+  stopWs?.();
+  if (!state.S.token){
+    state.connected=false; state.message="Pon el token en Ajustes."; render(); return;
+  }
+  try{
+    state.entities = await api("/api/states");
+    state.connected=true;
+    state.message=`Conectado · ${state.entities.length} entidades.`;
+    const sug=suggest(state.entities);
+    if (!state.S.doorbellEntity && sug.ding) state.S.doorbellEntity=sug.ding;
+    if (!state.S.porterCamera && sug.camera) state.S.porterCamera=sug.camera;
+    localStorage.setItem(SK, JSON.stringify(state.S));
+    catchBell(state.entities);
+    wsConnect();
+    render();
+  }catch(err){
+    state.connected=false;
+    state.message="No se ha podido conectar: "+(err.message||err);
+    render();
+  }
+}
+
+function saveS(patch){
+  state.S={...state.S,...patch};
+  localStorage.setItem(SK, JSON.stringify(state.S));
+  connect();
+}
+
+function esc(s){
+  return String(s??"").replace(/&/g,"\u0026amp;").replace(/</g,"\u0026lt;").replace(/>/g,"\u0026gt;").replace(/"/g,"\u0026quot;").replace(/'/g,"\u0026#39;");
+}
+function btn(label, extra="", cls="btn"){ return `<button class="${cls}" ${extra}>${label}</button>`; }
+function tog(on, extra){ return `<button class="toggle ${on?"on":""}" ${extra}><i></i></button>`; }
+
+function camBox(src, label, ringing, preferStill){
+  const still = preferStill;
+  const id = "cam-"+label.replace(/\s/g,"-");
+  return `<div class="cam" data-cam="${esc(src)}" data-still="${still?"1":"0"}" id="${id}">
+    ${src?`<img alt="${esc(label)}" src="${esc(src)}${src.includes("?")?"&":"?"}t=${Date.now()}" referrerpolicy="no-referrer">`:`<div class="ph"></div>`}
+    <span class="badge">${ringing?"LLAMADA":"EN DIRECTO"}</span>
+    <span class="clock"></span>
+    ${ringing?`<div class="callbar">LLAMADA EN EL PORTERO</div>`:""}
+  </div>`;
+}
+
+function home(){
+  const lights=by(state.entities,"light").filter(e=>e.state!=="unavailable");
+  const nOn=lights.filter(on).length;
+  const blinds=numberedBlinds(state.entities);
+  const climates=by(state.entities,"climate").filter(e=>!/tesla|twingo|renault/.test(blob(e)));
+  const temp=climates.find(e=>e.attributes.current_temperature!=null);
+  const quick=lights.filter(e=>!Array.isArray(e.attributes.entity_id)).slice(0,8);
+  return `
+  <section class="hero">
+    <div>
+      <p class="kicker" style="color:#cfcafc">Resumen de casa</p>
+      <h2 class="display" style="margin:0 0 10px;font-size:28px">Todo bajo control</h2>
+      <p>${state.connected?(nOn?nOn+" luces encendidas":"La casa está tranquila")+" · "+blinds.length+" persianas del porche":"Conecta Home Assistant para empezar."}</p>
+    </div>
+    <div class="display" style="font-size:26px;font-weight:800">${temp?temp.attributes.current_temperature+"°":"—"}</div>
+  </section>
+  <section class="stats">
+    ${[["luces",nOn,"luces encendidas","#eeeaff"],["persianas",blinds.length,"persianas","#eff7ff"],["clima",temp?temp.attributes.current_temperature+"°":"—","temperatura","#fff2e5"],["coches","2","coches","#e8f8f0"]].map(([go,v,l,c])=>`
+      <button class="stat" data-go="${go}"><div class="ic" style="background:${c}"></div><b>${v}</b><span>${l}</span></button>`).join("")}
+  </section>
+  <div class="row" style="margin-bottom:16px"><div><p class="tiny">Control rápido</p><h2 style="margin:0;font-size:21px">Ahora mismo</h2></div>
+    <button class="btn g" data-go="luces" style="min-height:36px">Ver luces</button></div>
+  <section class="grid4">${quick.map(e=>`
+    <article class="lcard ${on(e)?"on":""}">
+      <div class="ic" style="background:${on(e)?"var(--soft)":"#f2f3f7"};color:${on(e)?"var(--violet)":"#7d8596"}">💡</div>
+      <h3>${esc(name(e))}</h3>
+      <p>${esc(roomOf(e)?.label||"Casa")} · ${on(e)?"Encendido":"Apagado"}</p>
+      <div class="act">${btn(on(e)?"Apagar":"Encender", `data-act="toggle" data-id="${esc(e.entity_id)}"`, on(e)?"btn":"btn g")}</div>
+    </article>`).join("")||`<div class="empty">No hay luces.</div>`}</section>`;
+}
+
+function luces(){
+  const lights=by(state.entities,"light").filter(e=>e.state!=="unavailable");
+  const rooms=["Todos",...ROOMS.map(r=>r.label)];
+  const inRoom=(e,lab)=>{
+    if(lab==="Todos") return Boolean(roomOf(e));
+    const r=ROOMS.find(x=>x.label===lab);
+    return roomOf(e)?.id===r?.id;
+  };
+  const vis=lights.filter(e=>inRoom(e,state.lightFilter));
+  const ordered=[...vis.filter(isGroup), ...vis.filter(e=>!isGroup(e))];
+  return `<p class="tiny">Dispositivos</p><h2 style="margin:0 0 16px;font-size:21px">Luces</h2>
+  <div class="chiprow">${rooms.map(r=>`<button class="chip ${state.lightFilter===r?"on":""}" data-chip="${esc(r)}">${esc(r)}</button>`).join("")}</div>
+  <section class="grid3">${ordered.map(e=>`
+    <article class="lcard ${on(e)?"on":""}">
+      <div class="ic" style="background:${on(e)?"var(--soft)":"#f2f3f7"}">💡</div>
+      <h3>${esc(name(e))}</h3>
+      <p>${isGroup(e)?"Grupo":"Luz"} · ${on(e)?(e.attributes.brightness?Math.round(e.attributes.brightness/255*100)+"%":"Encendida"):"Apagada"}</p>
+      <div class="act">${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+    </article>`).join("")||`<div class="empty">No hay luces en este ambiente.</div>`}</section>`;
+}
+
+function persianas(){
+  const a=autoSw(state.entities,"automatizacion","persianas");
+  const g=porchGroup(state.entities);
+  const blinds=numberedBlinds(state.entities);
+  const gp=Number(g?.attributes.current_position??0);
+  return `<div class="row" style="margin-bottom:16px">
+    <div><p class="tiny">Luz natural</p><h2 style="margin:0;font-size:21px">Persianas</h2><p class="muted">Solo el grupo Toldos porche y sus seis persianas.</p></div>
+    <div style="display:flex;gap:8px">${btn("Abrir grupo",`data-act="svc" data-id="${esc(g?.entity_id||"")}" data-svc="open_cover"`,"btn g")}${btn("Cerrar grupo",`data-act="svc" data-id="${esc(g?.entity_id||"")}" data-svc="close_cover"`)}</div>
+  </div>
+  ${a?`<article class="card row" style="margin-bottom:12px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Las persianas siguen el horario automático.":"Control solo manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
+  ${g?`<article class="card" style="margin-bottom:12px"><div class="row"><div><h3 style="margin:0">${esc(name(g))}</h3><p class="muted">${esc(g.state)} · ${gp}%</p></div></div>
+    <input type="range" min="0" max="100" value="${gp}" data-cover="${esc(g.entity_id)}"></article>`:`<div class="empty">No encuentro el grupo Toldos porche.</div>`}
+  ${blinds.map(e=>{const p=Number(e.attributes.current_position??0);return `<article class="card" style="margin-bottom:10px"><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)} · ${p}%</p>
+    <input type="range" min="0" max="100" value="${p}" data-cover="${esc(e.entity_id)}"></article>`;}).join("")||`<div class="empty">No aparecen las persianas 1 a 6.</div>`}`;
+}
+
+function clima(){
+  const h=heat(state.entities), g=acG(state.entities), a=autoSw(state.entities,"automatizacion","aires");
+  const splits=acs(state.entities), fans=by(state.entities,"fan").filter(e=>!car(e));
+  const wheel=(e,label,min,max)=>{
+    if(!e) return `<div class="empty">No hay ${label.toLowerCase()}.</div>`;
+    const v=Number(e.attributes.temperature??21);
+    return `<article class="card"><p class="tiny">${label}</p>
+      <div class="wheel"><b>${v.toFixed(1).replace(".0","")}°</b><p class="muted">ahora ${e.attributes.current_temperature??"—"}°</p>
+      <p class="muted">${esc(name(e))}</p>
+      <div style="display:flex;gap:8px;margin:8px 0">${btn("−",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="-0.5"`,"btn g")}${btn("+",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="0.5"`,"btn g")}</div>
+      <input type="range" min="${min}" max="${max}" step="0.5" value="${v}" data-temp="${esc(e.entity_id)}">
+      <div class="modes" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px">${(e.attributes.hvac_modes||[]).map(m=>`<button class="${e.state===m?"on":""}" data-act="hvac" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>
+      </div></article>`;
+  };
+  return `<p class="tiny">Confort</p><h2 style="margin:0 0 16px;font-size:21px">Clima</h2>
+  <section class="grid2" style="margin-bottom:16px">${wheel(h,"Calefacción",16,30)}${wheel(g,"Aires acondicionados",18,30)}</section>
+  ${a?`<article class="card row" style="margin-bottom:16px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Los aires siguen las reglas automáticas.":"Los aires quedan en manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
+  <p class="tiny">Aires individuales</p>
+  <section class="grid3" style="margin-bottom:16px">${splits.map(e=>`<article class="card"><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)}</p>
+    <p class="display" style="font-size:34px;font-weight:800;margin:8px 0 0">${e.attributes.current_temperature??"—"}°</p>
+    <p class="muted">objetivo ${e.attributes.temperature??"—"}°</p>
+    <div style="display:flex;gap:8px">${btn("−",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="-0.5"`,"btn g")}${btn("+",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="0.5"`,"btn g")}</div></article>`).join("")||`<div class="empty">No hay aires de casa.</div>`}</section>
+  <p class="tiny">Ventiladores</p>
+  <section class="grid2">${fans.map(e=>`<article class="card row"><div><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${on(e)?(e.attributes.percentage??0)+"%":"Parado"}</p></div>${tog(on(e),`data-act="toggle" data-id="${esc(e.entity_id)}"`)}</article>`).join("")||`<div class="empty">No hay ventiladores de casa.</div>`}</section>`;
+}
+
+function entrada(){
+  const b=doorbell(state.entities,state.S.doorbellEntity);
+  const r=ringing(b);
+  const ringMode=isRing(state.S,state.entities);
+  const porter=camera(state.entities,state.S.porterCamera,"portero","doorbell","ring","live_view");
+  const entry=camera(state.entities,state.S.entryCamera,"entrada");
+  const carsC=camera(state.entities,state.S.carsCamera,"coche","garaje","parking");
+  const door=doorLock(state.entities);
+  const pSrc=camStill(porter,state.S.porterCamera);
+  const eSrc=camStill(entry,state.S.entryCamera);
+  const cSrc=camStill(carsC,state.S.carsCamera);
+  if (porter && state.connected && state.wokeCam!==porter.entity_id){ state.wokeCam=porter.entity_id; act(porter,"turn_on").catch(()=>{}); }
+  return `<div class="row" style="margin-bottom:16px"><div>
+    <p class="tiny">Seguridad y acceso</p>
+    <h2 style="margin:0;font-size:21px">Entrada</h2>
+    <p class="muted">${r?"Alguien está llamando. Responde o abre la puerta.":state.connected?(ringMode?"Vídeo del Ring en directo. Si llaman, suena aquí. Para hablar, abre la app Ring.":"Vídeo en directo del portero."):"Configura el timbre y las cámaras en Ajustes."}</p>
+  </div><span class="pill ${r?"hot pulse":""}">${r?"LLAMANDO":"EN ESPERA"}</span></div>
+  <section class="grid2" style="grid-template-columns:1.8fr .8fr;margin-bottom:24px">
+    <article class="card">
+      <div class="row" style="margin-bottom:10px"><b>${ringMode?"Ring":"Portero"}</b><span class="muted" style="font-size:10px;letter-spacing:.08em;color:#df3d55">EN DIRECTO</span></div>
+      ${camBox(pSrc,"Portero",r,ringMode)}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+        ${btn(ringMode?"Atender visita":"Responder con voz",`data-talk="1" ${r?"class=\"btn pulse\"":""}`)}
+        ${door?btn((door.state==="locked"||door.state==="off")?"Abrir puerta":"Cerrar puerta",`data-act="door" data-id="${esc(door.entity_id)}"`, "btn g"):""}
+        ${btn("Probar timbre",`data-ring="1"`,"btn g")}
+      </div>
+    </article>
+    <article class="card">
+      <p class="tiny">Actividad</p><h3 style="margin:0">Llamadas al portero</h3>
+      <ol style="list-style:none;padding:0;margin:12px 0 0;max-height:285px;overflow:auto">${state.logs.length?state.logs.map(i=>`<li class="row" style="border-bottom:1px solid var(--line);padding:8px 0;font-size:12px;color:var(--muted)"><b style="color:var(--ink)">Llamada recibida</b><span>${esc(i.date)} · ${esc(i.time)}</span></li>`).join(""):`<li class="muted" style="font-size:12px">Aún no hay llamadas en este dispositivo.</li>`}</ol>
+    </article>
+  </section>
+  <p class="tiny">Exterior</p><h2 style="margin:0 0 12px;font-size:21px">Otras cámaras</h2>
+  <section class="grid2">
+    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Entrada</div>${camBox(eSrc,"Entrada",false,false)}</article>
+    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Coches</div>${camBox(cSrc,"Coches",false,false)}</article>
+  </section>
+  ${state.talking?talkUI(ringMode,pSrc,door):""}`;
+}
+
+function talkUI(ringMode, src, door){
+  return `<div class="overlay" id="talk">
+    <div class="box">
+      <div class="hd">
+        <div><p class="tiny">Conversación</p><h3 style="margin:0">${ringMode?"Visita en el Ring":"Hablar con el portero"}</h3></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${ringMode?btn("Abrir app Ring",`data-open-ring="1"`):""}
+          ${door?btn("Abrir puerta",`data-act="door" data-id="${esc(door.entity_id)}"`,"btn g"):""}
+          ${btn("Colgar",`data-hang="1"`,"btn g")}
+        </div>
+      </div>
+      ${!ringMode && state.S.talkUrl?`<iframe title="Portero" src="${esc(state.S.talkUrl)}" style="width:100%;height:min(70vh,520px);border:0;background:#000" allow="camera;microphone;autoplay;fullscreen"></iframe>`:
+      `<div class="darkp">
+        ${camBox(src,"Visitante",true,ringMode)}
+        <div>
+          <video id="localv" autoplay muted playsinline style="width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;object-fit:cover"></video>
+          <p class="muted" style="color:#fff9;text-align:center;font-size:12px">${ringMode?"Ring no deja hablar desde otras apps. Aquí ves al visitante; para que te oiga, pulsa Abrir app Ring.":"Micrófono de esta tablet activo. Pega una URL WebRTC solo si tienes go2rtc."}</p>
+        </div>
+      </div>`}
+    </div>
+  </div>`;
+}
+
+function mapCard(title,e){
+  const lat=Number(e?.attributes.latitude), lon=Number(e?.attributes.longitude);
+  const src=Number.isFinite(lat)&&Number.isFinite(lon)?`https://www.openstreetmap.org/export/embed.html?bbox=${lon-0.02}%2C${lat-0.01}%2C${lon+0.02}%2C${lat+0.01}&layer=mapnik&marker=${lat}%2C${lon}`:"";
+  return `<article class="card" style="padding:0;overflow:hidden">
+    <div class="row" style="padding:12px 16px"><b>${esc(title)}</b><span class="muted">${e?.state==="home"?"En casa":e?"Fuera":"Sin señal"}</span></div>
+    ${src?`<iframe title="${esc(title)}" src="${src}" style="width:100%;height:208px;border:0"></iframe>`:`<div style="height:208px;display:grid;place-items:center;background:#eff3f8;color:var(--muted);font-size:12px">Esperando coordenadas</div>`}
+  </article>`;
+}
+function kit(title,value,action,id,svc){
+  return `<article class="card" style="min-height:132px;display:flex;flex-direction:column;justify-content:space-between">
+    <b style="font-size:20px">${esc(value)}</b>
+    <div><p style="margin:0;font-size:12px;font-weight:700">${esc(title)}</p>${btn(action,`data-act="svc" data-id="${esc(id||"")}" data-svc="${esc(svc||"")}"`,"btn g")}</div>
+  </article>`;
+}
+function coches(){
+  const tesla=tracker(state.entities,"tesla");
+  const twingo=tracker(state.entities,"twingo")||tracker(state.entities,"renault");
+  const batt=findNamed(state.entities,"tesla","bateria","battery");
+  const charge=findNamed(state.entities,"tesla","carga","charge");
+  const tclim=state.entities.find(e=>dom(e)==="climate"&&/tesla/.test(blob(e)))||findNamed(state.entities,"tesla","clima","climate","aire");
+  const trunk=state.entities.find(e=>/tesla/.test(blob(e))&&/maletero|trunk/.test(blob(e))&&dom(e)==="lock")||findNamed(state.entities,"tesla","maletero","trunk");
+  const range=findNamed(state.entities,"twingo","autonomia","range")||findNamed(state.entities,"renault","autonomia","range");
+  const tac=findNamed(state.entities,"twingo","aire","hvac","clima")||findNamed(state.entities,"renault","aire","hvac");
+  const tch=findNamed(state.entities,"twingo","iniciar carga","charge_start","carga")||findNamed(state.entities,"renault","charge_start","iniciar carga");
+  const wall=state.entities.find(e=>/wallbox/.test(blob(e))&&e.entity_id.startsWith("number."));
+  const solar=state.entities.find(e=>/wallbox/.test(blob(e))&&/solar/.test(blob(e)));
+  const resume=state.entities.find(e=>/wallbox/.test(blob(e))&&/reanudar|programacion|schedule/.test(blob(e)));
+  const climOff=!tclim||tclim.state==="off";
+  const climMode=(tclim?.attributes.hvac_modes||[]).find(m=>m!=="off")||"heat_cool";
+  return `<p class="tiny">Movilidad</p><h2 style="margin:0 0 16px;font-size:21px">Coches</h2>
+  <section class="grid2" style="margin-bottom:20px">${mapCard("Tesla",tesla)}${mapCard("Twingo",twingo)}</section>
+  <p class="tiny">Tesla</p>
+  <section class="grid4" style="margin-bottom:20px">
+    ${kit("Nivel de batería", batt?batt.state+unit(batt):"—","Actualizar",batt?.entity_id,"")}
+    ${kit("Carga", charge?.state==="on"?"Cargando":"Parada", charge?.state==="on"?"Detener":"Iniciar", charge?.entity_id, charge?.state==="on"?"turn_off":"turn_on")}
+    ${kit("Climatización", climOff?"Off":(tclim?.state||"—"), climOff?"Arrancar":"Apagar", tclim?.entity_id, "set_hvac_mode")}
+    ${kit("Maletero", (trunk?.state==="locked"||trunk?.state==="closed")?"Cerrado":(trunk?.state||"—"),"Abrir", trunk?.entity_id, trunk?.entity_id?.startsWith("lock.")?"unlock":"open_cover")}
+  </section>
+  <p class="tiny">Twingo</p>
+  <section class="grid3" style="margin-bottom:20px">
+    ${kit("Autonomía de la batería", range?range.state+unit(range):"—","Consultar",range?.entity_id,"")}
+    ${kit("Aire acondicionado","Listo","Arrancar",tac?.entity_id, tac?.entity_id?.startsWith("button.")?"press":"turn_on")}
+    ${kit("Carga","Listo","Iniciar carga",tch?.entity_id, tch?.entity_id?.startsWith("button.")?"press":"turn_on")}
+  </section>
+  <p class="tiny">Wallbox</p>
+  <section class="grid3">
+    <article class="card"><p style="margin:0 0 8px;font-size:12px;font-weight:700">Corriente de carga máxima</p>
+      <p class="display" style="font-size:24px;font-weight:800;margin:0 0 12px">${wall?wall.state+" A":"—"}</p>
+      ${wall?`<input type="range" min="${wall.attributes.min??6}" max="${wall.attributes.max??32}" value="${Number(wall.state)}" data-num="${esc(wall.entity_id)}">`:""}
+    </article>
+    <article class="card row"><div><b style="font-size:12px">Carga solar</b><p class="muted">${solar?.state==="on"?"Activa":"Apagada"}</p></div>${tog(solar?.state==="on",`data-act="toggle" data-id="${esc(solar?.entity_id||"")}"`)}</article>
+    <article class="card"><p style="margin:0 0 12px;font-size:12px;font-weight:700">Programación</p>${btn("Reanudar la programación",`data-act="svc" data-id="${esc(resume?.entity_id||"")}" data-svc="${resume?.entity_id?.startsWith("button.")?"press":"turn_on"}`)}</article>
+  </section>`;
+}
+
+function ajustes(){
+  const sug=suggest(state.entities);
+  const cams=by(state.entities,"camera");
+  const bells=state.entities.filter(e=>["binary_sensor","event","switch"].includes(dom(e)));
+  const S=state.S;
+  const opts=(list)=>list.map(e=>`<option value="${esc(e.entity_id)}">${esc(name(e))}</option>`).join("");
+  return `<p class="tiny">Configuración</p><h2 style="margin:0 0 8px;font-size:21px">Conectar la casa</h2>
+  <p class="muted" style="max-width:490px">Este archivo vive en tu Home Assistant. El token queda solo en este navegador.</p>
+  <form id="form" class="card formcard" style="margin-top:20px">
+    <label class="f">Dirección de Home Assistant
+      <input type="text" name="url" value="${esc(S.url)}"/>
+    </label>
+    <label class="f">Token de acceso
+      <input name="token" type="password" value="${esc(S.token)}"/>
+    </label>
+    <p class="tiny" style="margin-top:16px">Videoportero</p>
+    <p class="muted" style="font-size:12px;font-weight:700;margin:0 0 8px">Tipo de portero</p>
+    <div class="brandp">
+      ${[["auto","Detectar","Según las entidades"],["ring","Ring","Sin URL WebRTC"],["ip","Videoportero IP","Doorbird, 2N, Reolink"]].map(([id,l,h])=>`
+        <button type="button" class="${S.porterBrand===id?"on":""}" data-brand="${id}"><b>${l}</b><span>${h}</span></button>`).join("")}
+    </div>
+    ${S.porterBrand!=="ip"?`<div class="note" style="margin:16px 0">
+      <strong>Ring no tiene URL WebRTC.</strong> Nexo usa el timbre y la cámara de Home Assistant.
+      <ol>
+        <li>En HA: Ajustes → Dispositivos y servicios → Ring.</li>
+        <li>Timbre: <code>event.xxx_ding</code> o <code>binary_sensor.xxx_ding</code>.</li>
+        <li>Cámara: <code>camera.xxx_live_view</code>.</li>
+      </ol>
+      <p style="margin:8px 0 0">Para que el visitante te oiga, usa la app Ring. Si tienes go2rtc, la URL es opcional.</p>
+      ${sug.ding||sug.camera?`<button type="button" class="btn g" style="margin-top:10px" data-fill-ring="1">Usar entidades detectadas${sug.ding?" · "+sug.ding:""}${sug.camera?" · "+sug.camera:""}</button>`:""}
+    </div>`:`<p class="muted">Pega la página WebRTC de go2rtc para hablar.</p>`}
+    <label class="f">Entidad del timbre<input type="text" name="doorbellEntity" list="dl-bell" value="${esc(S.doorbellEntity)}" placeholder="event.xxx_ding"/><datalist id="dl-bell">${opts(bells)}</datalist></label>
+    <label class="f">Cámara del portero<input type="text" name="porterCamera" list="dl-cam" value="${esc(S.porterCamera)}" placeholder="camera.xxx_live_view"/><datalist id="dl-cam">${opts(cams)}</datalist></label>
+    <label class="f">URL para hablar (opcional, go2rtc)<input type="text" name="talkUrl" value="${esc(S.talkUrl)}" placeholder="https://casa:1984/webrtc.html?src=…"/></label>
+    <label class="f">Cámara entrada<input type="text" name="entryCamera" list="dl-cam2" value="${esc(S.entryCamera)}"/><datalist id="dl-cam2">${opts(cams)}</datalist></label>
+    <label class="f">Cámara coches<input type="text" name="carsCamera" list="dl-cam3" value="${esc(S.carsCamera)}"/><datalist id="dl-cam3">${opts(cams)}</datalist></label>
+    <div style="margin-top:12px">${btn("Guardar y conectar","type=\"submit\"")}</div>
+    <p class="muted" style="margin:12px 0 0">${esc(state.message)}</p>
+  </form>
+  <div class="note" style="max-width:760px;margin-top:16px"><strong>Privacidad.</strong> Crea un token exclusivo para Nexo y revócalo desde Home Assistant cuando quieras.</div>`;
+}
+
+function render(){
+  const date=new Intl.DateTimeFormat("es-ES",{weekday:"long",day:"numeric",month:"long"}).format(new Date());
+  $("#date").textContent=date.charAt(0).toUpperCase()+date.slice(1);
+  $("#title").textContent=TITLES[state.view];
+  $("#dot").className="dot"+(state.connected?" on":"");
+  $("#connlab").textContent=state.connected?"En línea":"Sin conectar";
+  const nav=NAV.map(([id,l])=>`<button data-view="${id}" class="${state.view===id?"on":""}">${l}</button>`).join("");
+  $("#sidenav").innerHTML=nav;
+  $("#mobnav").innerHTML=NAV.map(([id,l])=>`<button data-view="${id}" class="${state.view===id?"on":""}">${l}</button>`).join("");
+  $("#nav-set").className="nav-set"+(state.view==="ajustes"?" on":"");
+  const views={inicio:home,luces,persianas,clima,entrada,coches,ajustes};
+  $("#view").innerHTML=(views[state.view]||home)();
+  const bell=doorbell(state.entities,state.S.doorbellEntity);
+  let toast=$(".toast");
+  if (ringing(bell) && state.view!=="entrada"){
+    if(!toast){ toast=document.createElement("button"); toast.className="toast pulse"; toast.dataset.view="entrada"; toast.textContent="Alguien llama al portero"; document.body.appendChild(toast); }
+  } else toast?.remove();
+  tickCams();
+  const v=$("#localv");
+  if (v && navigator.mediaDevices){
+    navigator.mediaDevices.getUserMedia({audio:true,video:true}).then(s=>{v.srcObject=s;}).catch(()=>
+      navigator.mediaDevices.getUserMedia({audio:true,video:false}).catch(()=>{})
+    );
+  }
+}
+
+function tickCams(){
+  document.querySelectorAll(".clock").forEach(el=>{
+    el.textContent=new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  });
+}
+setInterval(()=>{
+  document.querySelectorAll(".cam[data-still='1'] img").forEach(img=>{
+    const base=img.src.replace(/([?&])t=\d+/,"$1").replace(/[?&]$/,"");
+    img.src=base+(base.includes("?")?"&":"?")+"t="+Date.now();
+  });
+  tickCams();
+},1300);
+
+function ent(id){ return state.entities.find(e=>e.entity_id===id); }
+
+document.addEventListener("click", ev=>{
+  const t=ev.target.closest("[data-view],[data-go],[data-act],[data-chip],[data-talk],[data-hang],[data-ring],[data-brand],[data-fill-ring],[data-open-ring]");
+  if(!t) return;
+  if (t.dataset.view){ state.view=t.dataset.view; if(state.view!=="entrada") state.talking=false; render(); }
+  if (t.dataset.go){ state.view=t.dataset.go; render(); }
+  if (t.dataset.chip){ state.lightFilter=t.dataset.chip; render(); }
+  if (t.dataset.talk){ state.talking=true; render(); }
+  if (t.dataset.hang){ state.talking=false; render(); }
+  if (t.dataset.ring){ ring(false); }
+  if (t.dataset.openRing){ location.href="ring://"; }
+  if (t.dataset.fillRing){
+    const sug=suggest(state.entities);
+    state.S.porterBrand="ring";
+    if (sug.ding) state.S.doorbellEntity=sug.ding;
+    if (sug.camera) state.S.porterCamera=sug.camera;
+    localStorage.setItem(SK, JSON.stringify(state.S));
+    render();
+  }
+  if (t.dataset.brand){ state.S.porterBrand=t.dataset.brand; render(); }
+  if (t.dataset.act==="toggle") toggle(ent(t.dataset.id));
+  if (t.dataset.act==="svc"){
+    const e=ent(t.dataset.id); if(!e||!t.dataset.svc) { if(!t.dataset.svc) refresh(); return; }
+    if (t.dataset.svc==="set_hvac_mode"){
+      const off=e.state==="off";
+      const next=(e.attributes.hvac_modes||[]).find(m=>m!=="off")||"heat_cool";
+      act(e,"set_hvac_mode",{hvac_mode:off?next:"off"});
+    } else act(e,t.dataset.svc);
+  }
+  if (t.dataset.act==="temp"){
+    const e=ent(t.dataset.id); if(!e) return;
+    act(e,"set_temperature",{temperature: Number(e.attributes.temperature??24)+Number(t.dataset.d)});
+  }
+  if (t.dataset.act==="hvac"){ const e=ent(t.dataset.id); if(e) act(e,"set_hvac_mode",{hvac_mode:t.dataset.mode}); }
+  if (t.dataset.act==="door"){
+    const e=ent(t.dataset.id); if(!e) return;
+    if (dom(e)==="lock") act(e, e.state==="locked"?"unlock":"lock");
+    else if (dom(e)==="button") act(e,"press");
+    else act(e,"turn_on");
+  }
+});
+document.addEventListener("change", ev=>{
+  const el=ev.target;
+  if (el.dataset.cover){ const e=ent(el.dataset.cover); if(e) act(e,"set_cover_position",{position:Number(el.value)}); }
+  if (el.dataset.temp){ const e=ent(el.dataset.temp); if(e) act(e,"set_temperature",{temperature:Number(el.value)}); }
+  if (el.dataset.num){ const e=ent(el.dataset.num); if(e) act(e,"set_value",{value:Number(el.value)}); }
+});
+document.addEventListener("submit", ev=>{
+  if (ev.target.id!=="form") return;
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  saveS({
+    url: fd.get("url"),
+    token: fd.get("token"),
+    doorbellEntity: fd.get("doorbellEntity"),
+    porterCamera: fd.get("porterCamera"),
+    talkUrl: fd.get("talkUrl"),
+    entryCamera: fd.get("entryCamera"),
+    carsCamera: fd.get("carsCamera"),
+    porterBrand: state.S.porterBrand||"ring",
+  });
+});
+$("#btn-ref").onclick=()=>refresh().catch(()=>{});
+$("#btn-set").onclick=()=>{ state.view="ajustes"; render(); };
+window.addEventListener("pointerdown", ()=>{
+  try{ const c=new (window.AudioContext||window.webkitAudioContext)(); c.resume(); setTimeout(()=>c.close(),300);}catch{}
+},{once:true});
+
+render();
+if (state.S.token) connect();
+else { state.view="ajustes"; state.message="Pega el token y pulsa Guardar. Si Nexo está en /local/, la dirección ya es esta casa."; render(); }
+})();
+</script>
+</body>
+</html>
