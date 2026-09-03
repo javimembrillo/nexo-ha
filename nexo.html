@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#6957e9"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>NEXO</title>
-<!-- NEXO 2026-08-31b · layout fix -->
+<!-- NEXO 2026-09-03 · habitaciones + toldos + clima -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -119,6 +119,12 @@ code{background:#fff;padding:1px 4px;border-radius:4px;font-size:11px;word-break
 .brandp b{display:block;font-size:14px}
 .brandp span{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
 .formcard{max-width:720px;width:100%}
+input[type=color]{display:inline-block;width:42px;height:32px;padding:2px;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}
+.ctrl{margin-top:12px}
+.ctrl label{display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--muted);margin:0}
+.lcard{min-height:auto}
+.lcard .act{position:static;margin-top:12px;align-self:flex-end}
+
 </style>
 </head>
 <body>
@@ -152,22 +158,39 @@ const ROOMS = [
   {id:"salon",label:"Salón",keys:["salon"]},
   {id:"porche",label:"Porche",keys:["porche"]},
   {id:"dormitorio",label:"Dormitorio",keys:["dormitorio"]},
-  {id:"entrada",label:"Entrada",keys:["entrada","recibidor"]},
+  {id:"recibidor",label:"Recibidor",keys:["recibidor","entrada"]},
   {id:"vestidor",label:"Vestidor",keys:["vestidor"]},
   {id:"martin",label:"Cuarto de Martín",keys:["martin","cuarto de martin"]},
+  {id:"ana",label:"Cuarto de Ana",keys:["cuarto de ana"," ana"]},
+  {id:"invitados",label:"Cuarto de invitados",keys:["invitados"]},
+  {id:"cocina",label:"Cocina",keys:["cocina"]},
   {id:"terraza",label:"Terraza",keys:["terraza"]},
 ];
 const NAV = [
-  ["inicio","Inicio"],["luces","Luces"],["persianas","Persianas"],
-  ["clima","Clima"],["entrada","Entrada"],["coches","Coches"],
+  ["inicio","Inicio"],["luces","Habitaciones"],["persianas","Toldos"],
+  ["clima","Clima"],["coches","Coches"],
 ];
-const TITLES = {inicio:"Buenos días",luces:"Luces",clima:"El clima",persianas:"Luz natural",entrada:"Entrada",coches:"Coches",ajustes:"Ajustes"};
+const TITLES = {inicio:"Buenos días",luces:"Habitaciones",clima:"El clima",persianas:"Toldos",coches:"Coches",ajustes:"Ajustes"};
+const HVAC_ES = {off:"Apagar",cool:"Frío",heat:"Calor",heat_cool:"Auto",auto:"Auto",fan_only:"Ventilador",dry:"Seco",fan:"Ventilador"};
+const TOLDO_NAME = {1:"Toldo 1 (piscina)",2:"Toldo 2",3:"Toldo 3",4:"Toldo 4",5:"Toldo 5",6:"6 (cocina)"};
 const SK = "nexo_ha_v3";
 const LK = "nexo_doorbell_log";
 
 const fold = s => (s||"").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
 const blob = e => fold(`${e.entity_id} ${e.attributes.friendly_name||""}`);
-const name = e => e.attributes.friendly_name || (e.entity_id.split(".").pop()||"").replace(/_/g," ");
+const rawName = e => e.attributes.friendly_name || (e.entity_id.split(".").pop()||"").replace(/_/g," ");
+function name(e){
+  let n = rawName(e).replace(/\s+/g," ").trim();
+  const parts = n.split(" ");
+  if (parts.length>=4 && parts.length%2===0){
+    const mid = parts.length/2;
+    if (fold(parts.slice(0,mid).join(" "))===fold(parts.slice(mid).join(" "))) n = parts.slice(0,mid).join(" ");
+  }
+  const t = fold(n);
+  if (/techo/.test(t) && /vestidor/.test(t)) return "Luces techo vestidor";
+  if (/^luces vestidor$/.test(t) || (isGroup(e) && /vestidor/.test(t) && !/techo/.test(t))) return "Luces vestidor";
+  return n;
+}
 const dom = e => e.entity_id.split(".")[0];
 const by = (list,d) => list.filter(e => e.entity_id.startsWith(d+"."));
 const on = e => !["off","closed","unavailable","unknown","idle","unlocked"].includes(e.state);
@@ -178,9 +201,16 @@ const unit = e => e?.attributes.unit_of_measurement ? " "+e.attributes.unit_of_m
 
 function numberedBlinds(list){
   return by(list,"cover").map(e => {
-    const m = blob(e).match(/persiana(?:\s*|_)([1-6])\b/);
+    const m = blob(e).match(/(?:persiana|toldo)(?:\s*|_)([1-6])\b/);
     return m ? {e,n:+m[1]} : null;
   }).filter(Boolean).sort((a,b)=>a.n-b.n).map(x=>x.e);
+}
+function toldoLabel(e, n){
+  return TOLDO_NAME[n] || name(e);
+}
+function toldoNum(e){
+  const m = blob(e).match(/(?:persiana|toldo)(?:\s*|_)([1-6])\b/);
+  return m ? +m[1] : 0;
 }
 function porchGroup(list){
   return list.find(e => /toldo/.test(blob(e)) && /porche/.test(blob(e)))
@@ -248,6 +278,69 @@ function isRing(S,list){
   const hay = fold(`${S.doorbellEntity} ${S.porterCamera} ${list.map(blob).join(" ")}`);
   return /(?:^|[_\s.])ring(?:[_\s.]|$)|live_view|_ding|\.ding\b/.test(hay);
 }
+function hasKey(e,k){ return blob(e).includes(fold(k)); }
+function pick(list, pred){ return list.find(pred); }
+function roomLights(list, room){
+  return by(list,"light").filter(e => e.state!=="unavailable" && roomOf(e)?.id===room);
+}
+function salonLights(list){
+  const lights = by(list,"light").filter(e => e.state!=="unavailable");
+  const sofa = pick(lights, e => /sofa|sofá/.test(blob(e)));
+  const comedor = pick(lights, e => /comedor/.test(blob(e)));
+  const mesita = pick(lights, e => /mesita/.test(blob(e)));
+  const tele = pick(lights, e => /(?:^|[\s_])(tele|tv|television|luz de la tele)(?:$|[\s_])/.test(blob(e)) || /luz.*tele|tele.*luz/.test(blob(e)));
+  const out=[], seen=new Set();
+  [sofa,comedor,mesita,tele].forEach(e => { if(e && !seen.has(e.entity_id)){ seen.add(e.entity_id); out.push(e); } });
+  return out;
+}
+function vestidorLights(list){
+  const lights = roomLights(list,"vestidor");
+  const group = lights.find(e => isGroup(e) && /vestidor/.test(blob(e)) && !/techo/.test(blob(e)))
+    || lights.find(e => /^luces vestidor$/.test(fold(rawName(e))))
+    || lights.find(e => isGroup(e));
+  const rest = lights.filter(e => e.entity_id!==group?.entity_id);
+  return {group, rest};
+}
+function martinLights(list){
+  const lights = by(list,"light").filter(e => e.state!=="unavailable");
+  const hit = lights.filter(e => /martin/.test(blob(e)) || /cuarto de martin/.test(blob(e)));
+  return hit.length ? hit : roomLights(list,"martin");
+}
+function fansIn(list, key){
+  return by(list,"fan").filter(e => !car(e) && hasKey(e,key));
+}
+function acIn(list, key){
+  const all = by(list,"climate").filter(e => !car(e));
+  const k = fold(key);
+  return all.find(e => blob(e).includes(k) && ((e.attributes.hvac_modes||[]).includes("cool") || /aire|ac\b|split|daikin/.test(blob(e))))
+    || all.find(e => blob(e).includes(k));
+}
+function purifierIn(list){
+  return list.find(e => !car(e) && /purificador|air.?purifier|purifier/.test(blob(e)) && ["fan","switch","air_purifier","select"].includes(dom(e)));
+}
+function tvIn(list){
+  return list.find(e => dom(e)==="media_player" && !car(e) && (/tele|\btv\b|television|android.?tv|chromecast|samsung|lg /.test(blob(e)) || /salon/.test(blob(e))));
+}
+function canColor(e){
+  const m = e.attributes.supported_color_modes||[];
+  return m.some(x => ["rgb","rgbw","rgbww","hs","xy"].includes(x)) || Array.isArray(e.attributes.rgb_color);
+}
+function rgbHex(e){
+  const rgb = e.attributes.rgb_color;
+  if (!Array.isArray(rgb) || rgb.length<3) return "#6957e9";
+  return "#"+rgb.slice(0,3).map(n => Number(n).toString(16).padStart(2,"0")).join("");
+}
+function hexRgb(hex){
+  const h = String(hex||"").replace("#","");
+  return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0];
+}
+function hvacLabel(m){ return HVAC_ES[m]||m; }
+function hvacModes(e){
+  const raw = (e.attributes.hvac_modes||[]).filter(Boolean);
+  if (raw.length) return raw;
+  return ["off","cool","heat","fan_only","dry"];
+}
+
 
 function defaults(){
   const local = location.pathname.includes("/local/");
@@ -268,7 +361,7 @@ function loadL(){ try{ return JSON.parse(localStorage.getItem(LK)||"[]"); }catch
 
 const state = {
   view: "inicio",
-  lightFilter: "Todos",
+  lightFilter: "Salón",
   S: loadS(),
   entities: [],
   connected: false,
@@ -342,7 +435,7 @@ function ring(fromDevice){
   state.logs=[item,...state.logs].slice(0,50);
   localStorage.setItem(LK, JSON.stringify(state.logs));
   chime();
-  state.view="entrada";
+  state.view="luces"; state.lightFilter="Recibidor";
   if (fromDevice) state.talking=true;
   state.lastBell=true;
   render();
@@ -472,12 +565,12 @@ function home(){
     <div>
       <p class="kicker" style="color:#cfcafc">Resumen de casa</p>
       <h2 class="display" style="margin:0 0 10px;font-size:28px">Todo bajo control</h2>
-      <p>${state.connected?(nOn?nOn+" luces encendidas":"La casa está tranquila")+" · "+blinds.length+" persianas del porche":"Conecta Home Assistant para empezar."}</p>
+      <p>${state.connected?(nOn?nOn+" luces encendidas":"La casa está tranquila")+" · "+blinds.length+" toldos del porche":"Conecta Home Assistant para empezar."}</p>
     </div>
     <div class="display" style="font-size:26px;font-weight:800">${temp?temp.attributes.current_temperature+"°":"—"}</div>
   </section>
   <section class="stats">
-    ${[["luces",nOn,"luces encendidas","#eeeaff"],["persianas",blinds.length,"persianas","#eff7ff"],["clima",temp?temp.attributes.current_temperature+"°":"—","temperatura","#fff2e5"],["coches","2","coches","#e8f8f0"]].map(([go,v,l,c])=>`
+    ${[["luces",nOn,"luces encendidas","#eeeaff"],["persianas",blinds.length,"toldos","#eff7ff"],["clima",temp?temp.attributes.current_temperature+"°":"—","temperatura","#fff2e5"],["coches","2","coches","#e8f8f0"]].map(([go,v,l,c])=>`
       <button class="stat" data-go="${go}"><div class="ic" style="background:${c}"></div><b>${v}</b><span>${l}</span></button>`).join("")}
   </section>
   <div class="row" style="margin-bottom:16px"><div><p class="tiny">Control rápido</p><h2 style="margin:0;font-size:21px">Ahora mismo</h2></div>
@@ -491,67 +584,166 @@ function home(){
     </article>`).join("")||`<div class="empty">No hay luces.</div>`}</section>`;
 }
 
+function climateCard(e,label,min,max){
+  if(!e) return `<div class="empty">No hay ${label.toLowerCase()}.</div>`;
+  const v=Number(e.attributes.temperature??21);
+  const off=e.state==="off";
+  min = min??16; max = max??30;
+  return `<article class="card">
+    <div class="row"><div><p class="tiny">${label}</p><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${off?"Apagado":esc(hvacLabel(e.state))}</p></div>
+      ${tog(!off, `data-act="power" data-id="${esc(e.entity_id)}"`)}</div>
+    <div class="wheel"><b>${v.toFixed(1).replace(".0","")}°</b>
+      <p class="muted">ahora ${e.attributes.current_temperature??"—"}°</p>
+      <div style="display:flex;gap:8px;margin:8px 0">${btn("−",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="-0.5"`,"btn g")}${btn("+",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="0.5"`,"btn g")}</div>
+      <input type="range" min="${min}" max="${max}" step="0.5" value="${v}" data-temp="${esc(e.entity_id)}">
+      <div class="modes" style="margin-top:10px">${hvacModes(e).map(m=>`<button class="${e.state===m?"on":""}" data-act="hvac" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(hvacLabel(m))}</button>`).join("")}</div>
+    </div></article>`;
+}
+function fanCard(e){
+  const pct=Number(e.attributes.percentage??0);
+  const presets=e.attributes.preset_modes||[];
+  return `<article class="card">
+    <div class="row"><div><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${on(e)?pct+"%":"Parado"}</p></div>
+      ${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+    <div class="ctrl"><label><span>Velocidad</span><span>${pct}%</span></label>
+      <input type="range" min="0" max="100" value="${pct}" data-fanpct="${esc(e.entity_id)}"></div>
+    ${presets.length?`<div class="modes" style="margin-top:10px;justify-content:flex-start">${presets.map(m=>`<button class="${(e.attributes.preset_mode||"")===m?"on":""}" data-act="preset" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
+  </article>`;
+}
+function lightDimCard(e){
+  const pct=e.attributes.brightness!=null?Math.round(Number(e.attributes.brightness)/255*100):(on(e)?100:0);
+  return `<article class="card ${on(e)?"on":""}" style="border-color:${on(e)?"#e1ddff":"transparent"}">
+    <div class="row"><div><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${on(e)?pct+"%":"Apagada"}</p></div>
+      ${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+    <div class="ctrl"><label><span>Intensidad</span><span>${pct}%</span></label>
+      <input type="range" min="1" max="100" value="${Math.max(1,pct)}" data-bright="${esc(e.entity_id)}"></div>
+    ${canColor(e)?`<div class="row ctrl"><span class="muted" style="font-size:11px;font-weight:700">Color</span><input type="color" value="${rgbHex(e)}" data-color="${esc(e.entity_id)}"></div>`:""}
+  </article>`;
+}
+function lightCard(e){
+  return `<article class="lcard ${on(e)?"on":""}">
+    <div class="ic" style="background:${on(e)?"var(--soft)":"#f2f3f7"}">💡</div>
+    <h3>${esc(name(e))}</h3>
+    <p>${isGroup(e)?"Grupo":"Luz"} · ${on(e)?"Encendida":"Apagada"}</p>
+    <div class="act">${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+  </article>`;
+}
+function tvCard(e){
+  if(!e) return `<div class="empty">No encuentro la televisión.</div>`;
+  const vol=Math.round(Number(e.attributes.volume_level??0)*100);
+  return `<article class="card">
+    <div class="row"><div><p class="tiny">Televisión</p><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)}</p></div>
+      ${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+      ${btn("Vol −",`data-act="svc" data-id="${esc(e.entity_id)}" data-svc="volume_down"`,"btn g")}
+      ${btn("Vol +",`data-act="svc" data-id="${esc(e.entity_id)}" data-svc="volume_up"`,"btn g")}
+      ${btn("Play / Pausa",`data-act="svc" data-id="${esc(e.entity_id)}" data-svc="media_play_pause"`,"btn g")}
+    </div>
+    <div class="ctrl"><label><span>Volumen</span><span>${vol}%</span></label>
+      <input type="range" min="0" max="100" value="${vol}" data-vol="${esc(e.entity_id)}"></div>
+  </article>`;
+}
+function purifierCard(e){
+  if(!e) return `<div class="empty">No encuentro el purificador.</div>`;
+  const presets=e.attributes.preset_modes||e.attributes.options||[];
+  const cur=e.attributes.preset_mode||e.state;
+  return `<article class="card">
+    <div class="row"><div><p class="tiny">Purificador</p><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)}</p></div>
+      ${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
+    ${presets.length?`<div class="modes" style="margin-top:12px;justify-content:flex-start">${presets.map(m=>`<button class="${cur===m?"on":""}" data-act="preset" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
+  </article>`;
+}
+function roomHead(sub){
+  const f=state.lightFilter;
+  return `<p class="tiny">Casa</p><h2 style="margin:0 0 16px;font-size:21px">Habitaciones</h2>
+    <div class="chiprow">${ROOMS.map(r=>`<button class="chip ${f===r.label?"on":""}" data-chip="${esc(r.label)}">${esc(r.label)}</button>`).join("")}</div>
+    ${sub?`<p class="tiny">${sub}</p>`:""}`;
+}
 function luces(){
-  const lights=by(state.entities,"light").filter(e=>e.state!=="unavailable");
-  const rooms=["Todos",...ROOMS.map(r=>r.label)];
-  const inRoom=(e,lab)=>{
-    if(lab==="Todos") return Boolean(roomOf(e));
-    const r=ROOMS.find(x=>x.label===lab);
-    return roomOf(e)?.id===r?.id;
-  };
-  const vis=lights.filter(e=>inRoom(e,state.lightFilter));
-  const ordered=[...vis.filter(isGroup), ...vis.filter(e=>!isGroup(e))];
-  return `<p class="tiny">Dispositivos</p><h2 style="margin:0 0 16px;font-size:21px">Luces</h2>
-  <div class="chiprow">${rooms.map(r=>`<button class="chip ${state.lightFilter===r?"on":""}" data-chip="${esc(r)}">${esc(r)}</button>`).join("")}</div>
-  <section class="grid3">${ordered.map(e=>`
-    <article class="lcard ${on(e)?"on":""}">
-      <div class="ic" style="background:${on(e)?"var(--soft)":"#f2f3f7"}">💡</div>
-      <h3>${esc(name(e))}</h3>
-      <p>${isGroup(e)?"Grupo":"Luz"} · ${on(e)?(e.attributes.brightness?Math.round(e.attributes.brightness/255*100)+"%":"Encendida"):"Apagada"}</p>
-      <div class="act">${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
-    </article>`).join("")||`<div class="empty">No hay luces en este ambiente.</div>`}</section>`;
+  const f=state.lightFilter;
+  if(f==="Salón"){
+    const lights=salonLights(state.entities);
+    return roomHead("Luces del salón")+`
+      <section class="grid2" style="margin-bottom:16px">${lights.map(lightDimCard).join("")||`<div class="empty">Busco sofá, luces comedor, mesita y luz de la tele.</div>`}</section>
+      <p class="tiny">Purificador y tele</p>
+      <section class="grid2">${purifierCard(purifierIn(state.entities))}${tvCard(tvIn(state.entities))}</section>`;
+  }
+  if(f==="Porche"){
+    const lights=roomLights(state.entities,"porche");
+    const fans=fansIn(state.entities,"porche");
+    return roomHead("Luces")+`
+      <section class="grid3" style="margin-bottom:16px">${lights.map(lightCard).join("")||`<div class="empty">No hay luces del porche.</div>`}</section>
+      <p class="tiny">Ventiladores</p>
+      <section class="grid2">${fans.map(fanCard).join("")||`<div class="empty">No hay ventiladores del porche.</div>`}</section>`;
+  }
+  if(f==="Dormitorio"){
+    const lights=roomLights(state.entities,"dormitorio");
+    const fans=fansIn(state.entities,"dormitorio");
+    const ac=acIn(state.entities,"dormitorio");
+    return roomHead("Luces")+`
+      <section class="grid3" style="margin-bottom:16px">${lights.map(lightCard).join("")||`<div class="empty">No hay luces del dormitorio.</div>`}</section>
+      <p class="tiny">Ventilador</p>
+      <section class="grid2" style="margin-bottom:16px">${fans.map(fanCard).join("")||`<div class="empty">No hay ventilador del dormitorio.</div>`}</section>
+      <p class="tiny">Aire acondicionado</p>
+      <section class="grid2">${climateCard(ac,"Aire del dormitorio",18,30)}</section>`;
+  }
+  if(f==="Recibidor"){
+    const lights=roomLights(state.entities,"recibidor");
+    return roomHead("Luces")+`<section class="grid3">${lights.map(lightCard).join("")||`<div class="empty">No hay luces del recibidor.</div>`}</section>`;
+  }
+  if(f==="Vestidor"){
+    const {group, rest}=vestidorLights(state.entities);
+    return roomHead("Luces")+`
+      ${group?`<article class="card row" style="margin-bottom:16px"><div><b>${esc(name(group))}</b><p class="muted" style="margin:4px 0 0">${on(group)?"Grupo encendido":"Grupo apagado"}</p></div>${tog(on(group), `data-act="toggle" data-id="${esc(group.entity_id)}"`)}</article>`:`<div class="empty" style="margin-bottom:16px">No encuentro el grupo Luces vestidor.</div>`}
+      <section class="grid3">${rest.map(lightCard).join("")||`<div class="empty">No hay más luces del vestidor.</div>`}</section>`;
+  }
+  if(f==="Cuarto de Martín"){
+    const lights=martinLights(state.entities);
+    const ac=acIn(state.entities,"martin")||acIn(state.entities,"cuarto de martin");
+    return roomHead("Luces")+`
+      <section class="grid3" style="margin-bottom:16px">${lights.map(lightCard).join("")||`<div class="empty">No encuentro luces cuarto de Martín.</div>`}</section>
+      <p class="tiny">Aire acondicionado</p>
+      <section class="grid2">${climateCard(ac,"Aire de Martín",18,30)}</section>`;
+  }
+  if(f==="Cuarto de Ana"){
+    return roomHead("Aire acondicionado")+`<section class="grid2">${climateCard(acIn(state.entities,"cuarto de ana")||acIn(state.entities,"ana"),"Aire de Ana",18,30)}</section>`;
+  }
+  if(f==="Cuarto de invitados"){
+    return roomHead("Aire acondicionado")+`<section class="grid2">${climateCard(acIn(state.entities,"invitados"),"Aire de invitados",18,30)}</section>`;
+  }
+  if(f==="Cocina"){
+    return roomHead("Aire acondicionado")+`<section class="grid2">${climateCard(acIn(state.entities,"cocina"),"Aire de la cocina",18,30)}</section>`;
+  }
+  const lights=roomLights(state.entities,(ROOMS.find(r=>r.label===f)||{}).id);
+  return roomHead("Luces")+`<section class="grid3">${lights.map(lightCard).join("")||`<div class="empty">No hay luces en este ambiente.</div>`}</section>`;
 }
 
 function persianas(){
-  const a=autoSw(state.entities,"automatizacion","persianas");
+  const a=autoSw(state.entities,"automatizacion","persianas")||autoSw(state.entities,"automatizacion","toldos");
   const g=porchGroup(state.entities);
   const blinds=numberedBlinds(state.entities);
   const gp=Number(g?.attributes.current_position??0);
   return `<div class="row" style="margin-bottom:16px">
-    <div><p class="tiny">Luz natural</p><h2 style="margin:0;font-size:21px">Persianas</h2><p class="muted">Solo el grupo Toldos porche y sus seis persianas.</p></div>
+    <div><p class="tiny">Luz natural</p><h2 style="margin:0;font-size:21px">Toldos</h2><p class="muted">Grupo Toldos y los seis toldos del porche.</p></div>
     <div style="display:flex;gap:8px">${btn("Abrir grupo",`data-act="svc" data-id="${esc(g?.entity_id||"")}" data-svc="open_cover"`,"btn g")}${btn("Cerrar grupo",`data-act="svc" data-id="${esc(g?.entity_id||"")}" data-svc="close_cover"`)}</div>
   </div>
-  ${a?`<article class="card row" style="margin-bottom:12px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Las persianas siguen el horario automático.":"Control solo manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
-  ${g?`<article class="card" style="margin-bottom:12px"><div class="row"><div><h3 style="margin:0">${esc(name(g))}</h3><p class="muted">${esc(g.state)} · ${gp}%</p></div></div>
-    <input type="range" min="0" max="100" value="${gp}" data-cover="${esc(g.entity_id)}"></article>`:`<div class="empty">No encuentro el grupo Toldos porche.</div>`}
-  ${blinds.map(e=>{const p=Number(e.attributes.current_position??0);return `<article class="card" style="margin-bottom:10px"><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)} · ${p}%</p>
-    <input type="range" min="0" max="100" value="${p}" data-cover="${esc(e.entity_id)}"></article>`;}).join("")||`<div class="empty">No aparecen las persianas 1 a 6.</div>`}`;
+  ${a?`<article class="card row" style="margin-bottom:12px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Los toldos siguen el horario automático.":"Control solo manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
+  ${g?`<article class="card" style="margin-bottom:12px"><div class="row"><div><h3 style="margin:0">Toldos</h3><p class="muted">${esc(g.state)} · ${gp}%</p></div></div>
+    <input type="range" min="0" max="100" value="${gp}" data-cover="${esc(g.entity_id)}"></article>`:`<div class="empty">No encuentro el grupo de toldos.</div>`}
+  ${blinds.map(e=>{const n=toldoNum(e); const pct=Number(e.attributes.current_position??0); return `<article class="card" style="margin-bottom:10px"><h3 style="margin:0;font-size:14px">${esc(toldoLabel(e,n))}</h3><p class="muted">${esc(e.state)} · ${pct}%</p>
+    <input type="range" min="0" max="100" value="${pct}" data-cover="${esc(e.entity_id)}"></article>`;}).join("")||`<div class="empty">No aparecen los toldos 1 a 6.</div>`}`;
 }
 
 function clima(){
   const h=heat(state.entities), g=acG(state.entities), a=autoSw(state.entities,"automatizacion","aires");
   const splits=acs(state.entities), fans=by(state.entities,"fan").filter(e=>!car(e));
-  const wheel=(e,label,min,max)=>{
-    if(!e) return `<div class="empty">No hay ${label.toLowerCase()}.</div>`;
-    const v=Number(e.attributes.temperature??21);
-    return `<article class="card"><p class="tiny">${label}</p>
-      <div class="wheel"><b>${v.toFixed(1).replace(".0","")}°</b><p class="muted">ahora ${e.attributes.current_temperature??"—"}°</p>
-      <p class="muted">${esc(name(e))}</p>
-      <div style="display:flex;gap:8px;margin:8px 0">${btn("−",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="-0.5"`,"btn g")}${btn("+",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="0.5"`,"btn g")}</div>
-      <input type="range" min="${min}" max="${max}" step="0.5" value="${v}" data-temp="${esc(e.entity_id)}">
-      <div class="modes" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px">${(e.attributes.hvac_modes||[]).map(m=>`<button class="${e.state===m?"on":""}" data-act="hvac" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>
-      </div></article>`;
-  };
   return `<p class="tiny">Confort</p><h2 style="margin:0 0 16px;font-size:21px">Clima</h2>
-  <section class="grid2" style="margin-bottom:16px">${wheel(h,"Calefacción",16,30)}${wheel(g,"Aires acondicionados",18,30)}</section>
+  <section class="grid2" style="margin-bottom:16px">${climateCard(h,"Calefacción",16,30)}${climateCard(g,"Aires acondicionados",18,30)}</section>
   ${a?`<article class="card row" style="margin-bottom:16px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Los aires siguen las reglas automáticas.":"Los aires quedan en manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
   <p class="tiny">Aires individuales</p>
-  <section class="grid3" style="margin-bottom:16px">${splits.map(e=>`<article class="card"><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)}</p>
-    <p class="display" style="font-size:34px;font-weight:800;margin:8px 0 0">${e.attributes.current_temperature??"—"}°</p>
-    <p class="muted">objetivo ${e.attributes.temperature??"—"}°</p>
-    <div style="display:flex;gap:8px">${btn("−",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="-0.5"`,"btn g")}${btn("+",`data-act="temp" data-id="${esc(e.entity_id)}" data-d="0.5"`,"btn g")}</div></article>`).join("")||`<div class="empty">No hay aires de casa.</div>`}</section>
+  <section class="grid2" style="margin-bottom:16px">${splits.map(e=>climateCard(e,name(e),18,30)).join("")||`<div class="empty">No hay aires de casa.</div>`}</section>
   <p class="tiny">Ventiladores</p>
-  <section class="grid2">${fans.map(e=>`<article class="card row"><div><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${on(e)?(e.attributes.percentage??0)+"%":"Parado"}</p></div>${tog(on(e),`data-act="toggle" data-id="${esc(e.entity_id)}"`)}</article>`).join("")||`<div class="empty">No hay ventiladores de casa.</div>`}</section>`;
+  <section class="grid2">${fans.map(fanCard).join("")||`<div class="empty">No hay ventiladores de casa.</div>`}</section>`;
 }
 
 function entrada(){
@@ -724,12 +916,12 @@ function render(){
   $("#sidenav").innerHTML=nav;
   $("#mobnav").innerHTML=NAV.map(([id,l])=>`<button data-view="${id}" class="${state.view===id?"on":""}">${l}</button>`).join("");
   $("#nav-set").className="nav-set"+(state.view==="ajustes"?" on":"");
-  const views={inicio:home,luces,persianas,clima,entrada,coches,ajustes};
+  const views={inicio:home,luces,persianas,clima,coches,ajustes};
   $("#view").innerHTML=(views[state.view]||home)();
   const bell=doorbell(state.entities,state.S.doorbellEntity);
   let toast=$(".toast");
   if (ringing(bell) && state.view!=="entrada"){
-    if(!toast){ toast=document.createElement("button"); toast.className="toast pulse"; toast.dataset.view="entrada"; toast.textContent="Alguien llama al portero"; document.body.appendChild(toast); }
+    if(!toast){ toast=document.createElement("button"); toast.className="toast pulse"; toast.dataset.view="luces"; toast.textContent="Alguien llama al portero"; document.body.appendChild(toast); }
   } else toast?.remove();
   tickCams();
   const v=$("#localv");
@@ -788,6 +980,16 @@ document.addEventListener("click", ev=>{
     act(e,"set_temperature",{temperature: Number(e.attributes.temperature??24)+Number(t.dataset.d)});
   }
   if (t.dataset.act==="hvac"){ const e=ent(t.dataset.id); if(e) act(e,"set_hvac_mode",{hvac_mode:t.dataset.mode}); }
+  if (t.dataset.act==="power"){
+    const e=ent(t.dataset.id); if(!e) return;
+    if (e.state==="off"){ const next=hvacModes(e).find(m=>m!=="off")||"cool"; act(e,"set_hvac_mode",{hvac_mode:next}); }
+    else act(e,"set_hvac_mode",{hvac_mode:"off"});
+  }
+  if (t.dataset.act==="preset"){
+    const e=ent(t.dataset.id); if(!e) return;
+    if (dom(e)==="select") act(e,"select_option",{option:t.dataset.mode});
+    else act(e,"set_preset_mode",{preset_mode:t.dataset.mode});
+  }
   if (t.dataset.act==="door"){
     const e=ent(t.dataset.id); if(!e) return;
     if (dom(e)==="lock") act(e, e.state==="locked"?"unlock":"lock");
@@ -800,6 +1002,10 @@ document.addEventListener("change", ev=>{
   if (el.dataset.cover){ const e=ent(el.dataset.cover); if(e) act(e,"set_cover_position",{position:Number(el.value)}); }
   if (el.dataset.temp){ const e=ent(el.dataset.temp); if(e) act(e,"set_temperature",{temperature:Number(el.value)}); }
   if (el.dataset.num){ const e=ent(el.dataset.num); if(e) act(e,"set_value",{value:Number(el.value)}); }
+  if (el.dataset.bright){ const e=ent(el.dataset.bright); if(e) act(e,"turn_on",{brightness_pct:Number(el.value)}); }
+  if (el.dataset.color){ const e=ent(el.dataset.color); if(e) act(e,"turn_on",{rgb_color:hexRgb(el.value)}); }
+  if (el.dataset.fanpct){ const e=ent(el.dataset.fanpct); if(e) act(e,"set_percentage",{percentage:Number(el.value)}); }
+  if (el.dataset.vol){ const e=ent(el.dataset.vol); if(e) act(e,"volume_set",{volume_level:Number(el.value)/100}); }
 });
 document.addEventListener("submit", ev=>{
   if (ev.target.id!=="form") return;
