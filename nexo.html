@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#080d17"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>NEXO</title>
-<!-- NEXO 2026-09-19 · fotos de casa + saludo + cámaras en directo -->
+<!-- NEXO 2026-09-19b · WebRTC en vivo Ring -->
 <script>
 (()=>{try{const c=localStorage.getItem("nexo_theme")||"auto";const d=c==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):c;document.documentElement.dataset.theme=d}catch{}})();
 </script>
@@ -86,7 +86,12 @@ input[type=password]{letter-spacing:.08em}
 label.f{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:16px 0 0}
 .empty{padding:36px;text-align:center;color:var(--muted);border:1px dashed #d8dce6;border-radius:17px;background:#fff}
 .cam{position:relative;overflow:hidden;background:#0f1420;aspect-ratio:16/9;border-radius:13px}
-.cam img,.cam .ph{width:100%;height:100%;object-fit:cover;display:block}
+.cam img,.cam .ph,.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam video{position:absolute;inset:0;background:#0f1420;z-index:0}
+.cam .cam-ph{position:absolute;inset:0;display:grid;place-items:center;color:#d7e1ee;font-size:13px;font-weight:600;padding:20px;text-align:center;z-index:1;line-height:1.45}
+.cam.is-live .cam-ph,.cam.is-live .cam-retry{display:none}
+.cam .badge,.cam .clock,.cam .callbar{z-index:2}
+.cam-retry{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:3}
 .badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.45);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:700;letter-spacing:.08em}
 .clock{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.45);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-family:ui-monospace,monospace}
 .callbar{position:absolute;left:0;right:0;bottom:0;background:#df3d55;color:#fff;text-align:center;padding:8px;font-size:12px;font-weight:700}
@@ -706,10 +711,36 @@ async function refresh(){
   render();
 }
 
+let haSock=null, haMsgId=1, haLive=false;
+const haPending=new Map();
+const livePlayers={};
+const liveRetries={};
+
+function wsReady(){ return !!(haSock && haSock.readyState===1 && haLive); }
+function wsCall(type, payload={}){
+  return new Promise((resolve,reject)=>{
+    if(!wsReady()) return reject(new Error("Sin WebSocket"));
+    const id=haMsgId++;
+    const t=setTimeout(()=>{ if(haPending.has(id)){ haPending.delete(id); reject(new Error("timeout")); } }, 20000);
+    haPending.set(id,{resolve(r){ clearTimeout(t); resolve(r); }, reject(e){ clearTimeout(t); reject(e); }});
+    haSock.send(JSON.stringify({id, type, ...payload}));
+  });
+}
+function wsSubscribe(type, payload, onEvent){
+  if(!wsReady()) return {id:0, unsub(){}};
+  const id=haMsgId++;
+  haPending.set(id,{onEvent, resolve(){}, reject(){}});
+  haSock.send(JSON.stringify({id, type, ...payload}));
+  return {id, unsub(){
+    haPending.delete(id);
+    if(wsReady()){ try{ haSock.send(JSON.stringify({id:haMsgId++, type:"unsubscribe_events", subscription:id})); }catch{} }
+  }};
+}
+
 function wsConnect(){
   stopWs?.();
   if (!state.S.token) return;
-  let sock=null, id=1, closed=false, live=false;
+  let sock=null, closed=false, live=false;
   const open=()=>{
     if (closed) return;
     const u=new URL(ha());
@@ -720,18 +751,38 @@ function wsConnect(){
       const msg=JSON.parse(ev.data);
       if (msg.type==="auth_required") sock.send(JSON.stringify({type:"auth",access_token:state.S.token}));
       if (msg.type==="auth_ok"){
-        live=true;
-        sock.send(JSON.stringify({id:id++,type:"get_states"}));
-        sock.send(JSON.stringify({id:id++,type:"subscribe_events",event_type:"state_changed"}));
+        live=true; haLive=true; haSock=sock;
+        sock.send(JSON.stringify({id:haMsgId++,type:"get_states"}));
+        sock.send(JSON.stringify({id:haMsgId++,type:"subscribe_events",event_type:"state_changed"}));
+        if(state.view==="entrada") setTimeout(mountLiveCams, 80);
       }
-      if (msg.type==="result" && Array.isArray(msg.result)){ state.entities=msg.result; state.connected=true; catchBell(msg.result); render(); }
-      if (msg.type==="event" && msg.event?.data?.new_state) applyEntity(msg.event.data.new_state);
+      if (msg.type==="result"){
+        const p=haPending.get(msg.id);
+        if(p){
+          if(msg.success===false) p.reject?.(msg.error||new Error("ws"));
+          else p.resolve?.(msg.result);
+          if(!p.onEvent) haPending.delete(msg.id);
+        }
+        if (Array.isArray(msg.result)){ state.entities=msg.result; state.connected=true; catchBell(msg.result); render(); }
+      }
+      if (msg.type==="event"){
+        const p=haPending.get(msg.id);
+        if(p?.onEvent) p.onEvent(msg.event);
+        else if (msg.event?.data?.new_state) applyEntity(msg.event.data.new_state);
+      }
     });
-    sock.addEventListener("close", ()=>{ live=false; if(!closed) setTimeout(open,4000); });
+    sock.addEventListener("close", ()=>{
+      live=false; haLive=false;
+      if(haSock===sock) haSock=null;
+      haPending.forEach(p=>p.reject?.(new Error("ws-close")));
+      haPending.clear();
+      Object.keys(livePlayers).forEach(id=>stopLiveCam(id));
+      if(!closed) setTimeout(open,4000);
+    });
   };
   open();
   const poll=setInterval(()=>{ if(!closed && !live) refresh().catch(()=>{}); },4000);
-  stopWs=()=>{ closed=true; clearInterval(poll); sock?.close(); };
+  stopWs=()=>{ closed=true; clearInterval(poll); Object.keys(livePlayers).forEach(id=>stopLiveCam(id)); haLive=false; haSock=null; sock?.close(); };
 }
 
 async function connect(){
@@ -770,15 +821,194 @@ function esc(s){
 function btn(label, extra="", cls="btn"){ return `<button class="${cls}" ${extra}>${label}</button>`; }
 function tog(on, extra){ return `<button class="toggle ${on?"on":""}" ${extra}><i></i></button>`; }
 
-function camBox(src, label, ringing, preferStill){
-  const still = preferStill;
-  const id = "cam-"+label.replace(/\s/g,"-");
-  return `<div class="cam" data-cam="${esc(src)}" data-still="${still?"1":"0"}" id="${id}">
-    ${src?`<img alt="${esc(label)}" src="${esc(src)}${src.includes("?")?"&":"?"}t=${Date.now()}" referrerpolicy="no-referrer">`:`<div class="ph"></div>`}
+function camEntityId(entity){
+  if(!entity) return "";
+  if(typeof entity==="string") return entity.startsWith("camera.")||entity.startsWith("http")?entity:"";
+  return entity.entity_id||"";
+}
+function camBox(entity, label, ringing, clone){
+  const id=camEntityId(entity);
+  if(!id){
+    return `<div class="cam"><div class="cam-ph">No hay cámara configurada. Elige la entidad vista en vivo en Ajustes.</div><span class="badge">SIN CÁMARA</span></div>`;
+  }
+  if(id.startsWith("http")){
+    return `<div class="cam" id="cam-${esc(label.replace(/\s/g,"-"))}">
+      <img alt="${esc(label)}" src="${esc(id)}" referrerpolicy="no-referrer">
+      <span class="badge">${ringing?"LLAMADA":"EN DIRECTO"}</span><span class="clock"></span>
+      ${ringing?`<div class="callbar">LLAMADA EN EL PORTERO</div>`:""}
+    </div>`;
+  }
+  return `<div class="cam ${clone?"cam-clone":"cam-live"}" data-entity="${esc(id)}" id="cam-${esc(label.replace(/\s/g,"-"))}">
+    <div class="cam-ph">Conectando vista en vivo…</div>
     <span class="badge">${ringing?"LLAMADA":"EN DIRECTO"}</span>
     <span class="clock"></span>
     ${ringing?`<div class="callbar">LLAMADA EN EL PORTERO</div>`:""}
   </div>`;
+}
+function setCamStatus(el, text, live){
+  if(!el) return;
+  const ph=el.querySelector(".cam-ph");
+  if(ph && text!=null) ph.textContent=text;
+  el.classList.toggle("is-live", !!live);
+}
+function attachLiveVideo(el, player){
+  if(!el||!player?.video) return;
+  if(player.video.parentNode!==el){
+    el.querySelectorAll("video").forEach(v=>{ if(v!==player.video) v.remove(); });
+    el.appendChild(player.video);
+  }
+  if(player.stream && player.video.srcObject!==player.stream) player.video.srcObject=player.stream;
+  if(player.pc && player.pc.connectionState==="connected") setCamStatus(el,"",true);
+}
+function stopLiveCam(entityId){
+  const p=livePlayers[entityId];
+  if(!p) return;
+  p.dead=true;
+  try{ p.unsub?.(); }catch{}
+  try{ p.stream?.getTracks().forEach(t=>t.stop()); }catch{}
+  try{ p.pc?.close(); }catch{}
+  try{ p.video?.remove(); }catch{}
+  delete livePlayers[entityId];
+}
+function syncClones(entityId, stream){
+  document.querySelectorAll(".cam-clone").forEach(el=>{
+    if(el.dataset.entity!==entityId) return;
+    let v=el.querySelector("video");
+    if(!v){
+      v=document.createElement("video");
+      v.autoplay=true; v.muted=true; v.playsInline=true;
+      v.setAttribute("playsinline",""); v.setAttribute("muted","");
+      el.appendChild(v);
+    }
+    if(stream){ v.srcObject=stream; setCamStatus(el,"",true); v.play?.().catch(()=>{}); }
+  });
+}
+async function startLiveCam(el, entityId){
+  if(!el||!entityId) return;
+  const cur=livePlayers[entityId];
+  if(cur?.starting) return;
+  if(cur?.pc && cur.video && !["failed","closed"].includes(cur.pc.connectionState)){
+    attachLiveVideo(el, cur);
+    return;
+  }
+  stopLiveCam(entityId);
+  if(!wsReady()){
+    setCamStatus(el,"Esperando conexión con Home Assistant…",false);
+    setTimeout(()=>{ const box=document.querySelector(".cam-live[data-entity=\""+entityId+"\"]"); if(box && !livePlayers[entityId]) startLiveCam(box, entityId); }, 1200);
+    return;
+  }
+  const retries=liveRetries[entityId]||0;
+  const player={entityId, starting:true, dead:false, video:null, pc:null, stream:null, unsub:null, sessionId:"", localIce:[]};
+  livePlayers[entityId]=player;
+  setCamStatus(el,"Conectando vista en vivo…",false);
+  el.querySelector(".cam-retry")?.remove();
+  const video=document.createElement("video");
+  video.autoplay=true; video.muted=true; video.playsInline=true;
+  video.setAttribute("playsinline",""); video.setAttribute("muted","");
+  player.video=video;
+  el.appendChild(video);
+  try{
+    let cfg={configuration:{iceServers:[{urls:"stun:stun.home-assistant.io:80"},{urls:"stun:stun.l.google.com:19302"}]}};
+    try{ cfg=await wsCall("camera/webrtc/get_client_config",{entity_id:entityId})||cfg; }catch{}
+    if(player.dead) return;
+    const pc=new RTCPeerConnection(cfg.configuration||{iceServers:cfg.iceServers||[]});
+    player.pc=pc;
+    if(cfg.dataChannel) pc.createDataChannel(cfg.dataChannel);
+    const stream=new MediaStream();
+    player.stream=stream;
+    video.srcObject=stream;
+    pc.ontrack=ev=>{
+      if(player.dead) return;
+      const tracks=ev.streams && ev.streams[0] ? ev.streams[0].getTracks() : [ev.track];
+      tracks.forEach(t=>{ if(t && !stream.getTracks().includes(t)) stream.addTrack(t); });
+      setCamStatus(el,"",true);
+      liveRetries[entityId]=0;
+      video.play?.().catch(()=>{});
+      syncClones(entityId, stream);
+    };
+    pc.onicecandidate=ev=>{
+      if(player.dead || !ev.candidate) return;
+      const init=typeof ev.candidate.toJSON==="function"?ev.candidate.toJSON():{candidate:ev.candidate.candidate,sdpMid:ev.candidate.sdpMid,sdpMLineIndex:ev.candidate.sdpMLineIndex};
+      if(player.sessionId) wsCall("camera/webrtc/candidate",{entity_id:entityId,session_id:player.sessionId,candidate:init}).catch(()=>{});
+      else player.localIce.push(init);
+    };
+    pc.onconnectionstatechange=()=>{
+      if(player.dead) return;
+      if(pc.connectionState==="connected"){ setCamStatus(el,"",true); liveRetries[entityId]=0; }
+      if(pc.connectionState==="failed"){
+        if((liveRetries[entityId]||0)>=5){
+          setCamStatus(el,"Sin señal en vivo. Reintenta o revisa la entidad vista en vivo.",false);
+          if(!el.querySelector(".cam-retry")){
+            const b=document.createElement("button");
+            b.className="btn cam-retry"; b.dataset.camRetry=entityId; b.textContent="Reintentar";
+            el.appendChild(b);
+          }
+          return;
+        }
+        liveRetries[entityId]=(liveRetries[entityId]||0)+1;
+        setCamStatus(el,"Reconectando…",false);
+        setTimeout(()=>{
+          if(player.dead) return;
+          stopLiveCam(entityId);
+          const box=document.querySelector(".cam-live[data-entity=\""+entityId+"\"]");
+          if(box) startLiveCam(box, entityId);
+        }, 1600);
+      }
+    };
+    pc.addTransceiver("audio",{direction:"recvonly"});
+    pc.addTransceiver("video",{direction:"recvonly"});
+    const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});
+    await pc.setLocalDescription(offer);
+    if(player.dead) return;
+    const sub=wsSubscribe("camera/webrtc/offer",{entity_id:entityId, offer:offer.sdp}, async event=>{
+      if(player.dead || !event) return;
+      if(event.type==="session"){
+        player.sessionId=event.session_id;
+        player.localIce.splice(0).forEach(c=>wsCall("camera/webrtc/candidate",{entity_id:entityId,session_id:player.sessionId,candidate:c}).catch(()=>{}));
+      } else if(event.type==="answer"){
+        try{ await pc.setRemoteDescription({type:"answer", sdp:event.answer}); }
+        catch{
+          try{ await pc.setRemoteDescription({type:"answer", sdp:String(event.answer||"").replace(/a=recvonly/g,"a=sendonly")}); }
+          catch{ setCamStatus(el,"No se pudo negociar el directo",false); }
+        }
+      } else if(event.type==="candidate" && event.candidate){
+        const c=event.candidate;
+        try{ await pc.addIceCandidate((c.sdpMid||c.sdpMLineIndex!=null)?c:{...c,sdpMid:"0"}); }catch{}
+      } else if(event.type==="error"){
+        setCamStatus(el, event.message||"Sin señal en vivo", false);
+      }
+    });
+    player.unsub=sub.unsub;
+    player.starting=false;
+  }catch(err){
+    player.starting=false;
+    if(player.dead) return;
+    liveRetries[entityId]=retries+1;
+    setCamStatus(el, "Sin señal en vivo", false);
+    if(!el.querySelector(".cam-retry")){
+      const b=document.createElement("button");
+      b.className="btn cam-retry"; b.dataset.camRetry=entityId; b.textContent="Reintentar";
+      el.appendChild(b);
+    }
+  }
+}
+function mountLiveCams(){
+  const seen=new Set();
+  document.querySelectorAll(".cam-live[data-entity]").forEach(el=>{
+    const id=el.dataset.entity;
+    if(!id) return;
+    seen.add(id);
+    const p=livePlayers[id];
+    if(p && p.video && p.pc && !["failed","closed"].includes(p.pc.connectionState)) attachLiveVideo(el,p);
+    else startLiveCam(el,id);
+  });
+  document.querySelectorAll(".cam-clone[data-entity]").forEach(el=>{
+    const id=el.dataset.entity;
+    const p=livePlayers[id];
+    syncClones(id, p?.stream);
+    if(!p?.stream) setCamStatus(el,"Conectando vista en vivo…",false);
+  });
+  Object.keys(livePlayers).forEach(id=>{ if(!seen.has(id)) stopLiveCam(id); });
 }
 
 function home(){
@@ -1000,17 +1230,15 @@ function entrada(){
   const liveEntry=entry && isRecordingCam(entry)?(liveSibling(state.entities,entry.entity_id)||entry):entry;
   const liveCars=carsC && isRecordingCam(carsC)?(liveSibling(state.entities,carsC.entity_id)||carsC):carsC;
   const door=doorLock(state.entities);
-  const pSrc=camStill(livePorter,livePorter?.entity_id||state.S.porterCamera), eSrc=camStill(liveEntry,liveEntry?.entity_id||state.S.entryCamera), cSrc=camStill(liveCars,liveCars?.entity_id||state.S.carsCamera);
-  [livePorter,liveEntry,liveCars].filter(Boolean).forEach(wakeLive);
-  return `<div class="row" style="margin-bottom:16px"><div><p class="tiny">Seguridad</p><h2 style="margin:0;font-size:21px">Cámaras en directo</h2><p class="muted">Portero, entrada y zona de coches · vista en vivo, no el último clip.</p></div><span class="pill ${r?"hot pulse":""}">${r?"LLAMANDO":"EN ESPERA"}</span></div>
-  <article class="card camera-lead"><div class="row" style="margin-bottom:10px"><b>Portero</b><span class="muted">EN DIRECTO</span></div>${camBox(pSrc,"Portero",r,true)}
+  return `<div class="row" style="margin-bottom:16px"><div><p class="tiny">Seguridad</p><h2 style="margin:0;font-size:21px">Cámaras en directo</h2><p class="muted">Portero, entrada y zona de coches · WebRTC en vivo, no el último clip.</p></div><span class="pill ${r?"hot pulse":""}">${r?"LLAMANDO":"EN ESPERA"}</span></div>
+  <article class="card camera-lead"><div class="row" style="margin-bottom:10px"><b>Portero</b><span class="muted">EN DIRECTO</span></div>${camBox(livePorter,"Portero",r,false)}
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">${btn(ringMode?"Atender visita":"Responder con voz",`data-talk="1" ${r?'class="btn pulse"':""}`)}${door?btn((door.state==="locked"||door.state==="off")?"Abrir puerta":"Cerrar puerta",`data-act="door" data-id="${esc(door.entity_id)}"`,"btn g"):""}${btn("Probar timbre",`data-ring="1"`,"btn g")}</div></article>
   <section class="grid2 camera-secondary" style="margin-bottom:24px">
-    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Entrada</div>${camBox(eSrc,"Entrada",false,true)}</article>
-    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Coches</div>${camBox(cSrc,"Coches",false,true)}</article>
+    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Entrada</div>${camBox(liveEntry,"Entrada",false,false)}</article>
+    <article class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;font-size:13px">Coches</div>${camBox(liveCars,"Coches",false,false)}</article>
   </section>
   <article class="card"><p class="tiny">Actividad</p><h3 style="margin:0">Llamadas al portero</h3><ol style="list-style:none;padding:0;margin:12px 0 0;max-height:220px;overflow:auto">${state.logs.length?state.logs.map(i=>`<li class="row" style="border-bottom:1px solid var(--line);padding:8px 0;font-size:12px;color:var(--muted)"><b style="color:var(--ink)">Llamada recibida</b><span>${esc(i.date)} · ${esc(i.time)}</span></li>`).join(""):`<li class="muted">Aún no hay llamadas en este dispositivo.</li>`}</ol></article>
-  ${state.talking?talkUI(ringMode,pSrc,door):""}`;
+  ${state.talking?talkUI(ringMode,livePorter,door):""}`;
 }
 
 function talkUI(ringMode, src, door){
@@ -1117,7 +1345,7 @@ function ajustes(){
       <ol>
         <li>En HA: Ajustes → Dispositivos y servicios → Ring.</li>
         <li>Timbre: <code>event.xxx_ding</code> o <code>binary_sensor.xxx_ding</code>.</li>
-        <li>Cámara: <code>camera.xxx_live_view</code>.</li>
+        <li>Cámara: <code>camera.xxx_live_view</code> o <code>camera.xxx_vista_en_vivo</code>. Nexo abre WebRTC (el directo de Lovelace), nunca el último clip.</li>
       </ol>
       <p style="margin:8px 0 0">Para que el visitante te oiga, usa la app Ring. Si tienes go2rtc, la URL es opcional.</p>
       ${sug.ding||sug.camera?`<button type="button" class="btn g" style="margin-top:10px" data-fill-ring="1">Usar entidades detectadas${sug.ding?" · "+sug.ding:""}${sug.camera?" · "+sug.camera:""}</button>`:""}
@@ -1151,6 +1379,7 @@ function render(){
     if(!toast){ toast=document.createElement("button"); toast.className="toast pulse"; toast.dataset.view="entrada"; toast.textContent="Alguien llama al portero"; document.body.appendChild(toast); }
   } else toast?.remove();
   tickCams();
+  mountLiveCams();
   applyTheme();
   const v=$("#localv");
   if (v && navigator.mediaDevices){
@@ -1166,10 +1395,6 @@ function tickCams(){
   });
 }
 setInterval(()=>{
-  document.querySelectorAll(".cam[data-still='1'] img").forEach(img=>{
-    const base=img.src.replace(/([?&])t=\d+/,"$1").replace(/[?&]$/,"");
-    img.src=base+(base.includes("?")?"&":"?")+"t="+Date.now();
-  });
   tickCams();
   const t=$("#title");
   if(t && state.view==="inicio") t.textContent=greeting();
@@ -1178,8 +1403,9 @@ setInterval(()=>{
 function ent(id){ return state.entities.find(e=>e.entity_id===id); }
 
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-view],[data-go],[data-act],[data-chip],[data-talk],[data-hang],[data-ring],[data-brand],[data-fill-ring],[data-open-ring],[data-theme-choice]");
+  const t=ev.target.closest("[data-view],[data-go],[data-act],[data-chip],[data-talk],[data-hang],[data-ring],[data-brand],[data-fill-ring],[data-open-ring],[data-theme-choice],[data-cam-retry]");
   if(!t) return;
+  if (t.dataset.camRetry){ liveRetries[t.dataset.camRetry]=0; stopLiveCam(t.dataset.camRetry); const box=document.querySelector('.cam-live[data-entity="'+t.dataset.camRetry+'"]'); if(box) startLiveCam(box,t.dataset.camRetry); return; }
   if (t.dataset.themeChoice){ localStorage.setItem(TK,t.dataset.themeChoice); applyTheme(t.dataset.themeChoice); }
   if (t.dataset.view){ state.view=t.dataset.view; if(state.view!=="entrada") state.talking=false; render(); }
   if (t.dataset.go){ state.view=t.dataset.go; render(); }
