@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#080d17"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>NEXO</title>
-<!-- NEXO 2026-09-27 · piscina, clima y toldos porche -->
+<!-- NEXO 2026-09-27c · calentador, purificadores y toldos 0/100 -->
 <script>
 (()=>{try{const c=localStorage.getItem("nexo_theme")||"auto";const d=c==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):c;document.documentElement.dataset.theme=d}catch{}})();
 </script>
@@ -119,6 +119,7 @@ code{background:#fff;padding:1px 4px;border-radius:4px;font-size:11px;word-break
 .dial .track{fill:none;stroke:var(--line);stroke-width:10}
 .dial .arc{fill:none;stroke:var(--violet);stroke-width:10;stroke-linecap:round}
 .dial b{position:absolute;inset:0;display:grid;place-items:center;font-family:Manrope,sans-serif;font-size:22px;font-weight:800}
+.dial-actions{display:flex;justify-content:center;gap:8px;margin-top:12px}
 .period label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-top:10px}
 .muted{color:var(--muted);font-size:13px;line-height:1.5}
 .tiny{font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
@@ -1133,12 +1134,13 @@ function tvCard(e){
       <input type="range" min="0" max="100" value="${vol}" data-vol="${esc(e.entity_id)}"></div>
   </article>`;
 }
-function purifierCard(e){
+function purifierCard(e, label){
   if(!e) return `<div class="empty">No encuentro el purificador.</div>`;
   const presets=e.attributes.preset_modes||e.attributes.options||[];
   const cur=e.attributes.preset_mode||e.state;
+  const title=label||name(e);
   return `<article class="card">
-    <div class="row"><div><p class="tiny">Purificador</p><h3 style="margin:0;font-size:14px">${esc(name(e))}</h3><p class="muted">${esc(e.state)}</p></div>
+    <div class="row"><div>${label?"":`<p class="tiny">Purificador</p>`}<h3 style="margin:0;font-size:14px">${esc(title)}</h3><p class="muted">${esc(e.state)}</p></div>
       ${tog(on(e), `data-act="toggle" data-id="${esc(e.entity_id)}"`)}</div>
     ${presets.length?`<div class="modes" style="margin-top:12px;justify-content:flex-start">${presets.map(m=>`<button class="${cur===m?"on":""}" data-act="preset" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
   </article>`;
@@ -1222,6 +1224,9 @@ function coverDial(entityId, pct){
     <b>${p}%</b>
   </div>`;
 }
+function coverControls(entityId, pct){
+  return `${coverDial(entityId, pct)}<div class="dial-actions">${btn("0%",`data-act="coverpos" data-id="${esc(entityId)}" data-pos="0"`,"btn g")}${btn("100%",`data-act="coverpos" data-id="${esc(entityId)}" data-pos="100"`,"btn g")}</div>`;
+}
 function persianas(){
   const a=autoSw(state.entities,"automatizacion","persianas")||autoSw(state.entities,"automatizacion","toldos");
   const g=porchGroup(state.entities);
@@ -1234,23 +1239,38 @@ function persianas(){
   </div>
   ${a?`<article class="card row" style="margin-bottom:12px"><div><b>${esc(name(a))}</b><p class="muted" style="margin:4px 0 0">${a.state==="on"?"Los toldos siguen el horario automático.":"Control solo manual."}</p></div>${tog(a.state==="on",`data-act="toggle" data-id="${esc(a.entity_id)}"`)}</article>`:""}
   ${g?`<article class="card" style="margin-bottom:12px"><div class="row"><div><h3 style="margin:0">Toldos porche</h3><p class="muted">${esc(g.state)} · ${gp}%</p></div></div>
-    ${coverDial(g.entity_id, gp)}</article>`:`<div class="empty">No encuentro el grupo de toldos.</div>`}
-  <section class="grid3">${blinds.map(e=>{const n=toldoNum(e); const pct=Number(e.attributes.current_position??0); return `<article class="card"><h3 style="margin:0;font-size:14px">${esc(toldoLabel(e,n))}</h3><p class="muted">${esc(e.state)}</p>${coverDial(e.entity_id, pct)}</article>`;}).join("")||`<div class="empty">No aparecen los toldos 1 a 6.</div>`}</section>`;
+    ${coverControls(g.entity_id, gp)}</article>`:`<div class="empty">No encuentro el grupo de toldos.</div>`}
+  <section class="grid3">${blinds.map(e=>{const n=toldoNum(e); const pct=Number(e.attributes.current_position??0); return `<article class="card"><h3 style="margin:0;font-size:14px">${esc(toldoLabel(e,n))}</h3><p class="muted">${esc(e.state)}</p>${coverControls(e.entity_id, pct)}</article>`;}).join("")||`<div class="empty">No aparecen los toldos 1 a 6.</div>`}</section>`;
 }
 
+function purifierLabel(e){
+  const raw=fold(`${name(e)} ${e.entity_id.replace(/[._]/g," ")}`);
+  if(/\b(brightness|brillo|display|custom-service|custom service|alarm|locked|bloqueo|ion|negativo|sonido|notificacion|country|manual-level|manual level|temperature display)\b/.test(raw)) return null;
+  const friendly=fold(name(e));
+  if(/air purifier/.test(friendly) && !/air purifier\s*$/.test(friendly)) return null;
+  const main=/air purifier/.test(raw) || (dom(e)==="fan" && /purificador|purifier/.test(raw));
+  if(!main) return null;
+  if(/salon/.test(raw)) return "Purificador aire salón";
+  if(/piso de arriba|\barriba\b/.test(raw)) return "Purificador aire piso de arriba";
+  return null;
+}
+function climaPurifiers(list){
+  const best=new Map();
+  list.forEach(e=>{
+    if(car(e)) return;
+    const label=purifierLabel(e);
+    if(!label) return;
+    const prev=best.get(label);
+    if(!prev || (dom(e)==="fan" && dom(prev)!=="fan")) best.set(label,e);
+  });
+  return ["Purificador aire salón","Purificador aire piso de arriba"].filter(l=>best.has(l)).map(l=>({e:best.get(l),label:l}));
+}
 function clima(){
   const h=heat(state.entities), g=acG(state.entities), a=autoSw(state.entities,"automatizacion","aires");
   const splits=acs(state.entities).slice().sort((x,y)=>acRank(x)-acRank(y));
   const units=[h,g,...splits].filter((e,i,arr)=>e&&arr.findIndex(x=>x.entity_id===e.entity_id)===i);
-  const purifiers=[];
-  const seenP=new Set();
-  state.entities.forEach(e=>{
-    if(car(e) || seenP.has(e.entity_id)) return;
-    if(!/purificador|air.?purifier|purifier/.test(blob(e))) return;
-    if(!["fan","switch","air_purifier","select"].includes(dom(e))) return;
-    seenP.add(e.entity_id); purifiers.push(e);
-  });
-  const fans=by(state.entities,"fan").filter(e=>!car(e) && !seenP.has(e.entity_id));
+  const purifiers=climaPurifiers(state.entities);
+  const fans=by(state.entities,"fan").filter(e=>!car(e) && !/purificador|air.?purifier|purifier/.test(blob(e)));
   const titleOf=e=>acTitle(e);
   return `${sceneBanner("daikin","Confort","Clima","Aires, calefacción y ventilación.")}
   <p class="tiny">Automatización</p>
@@ -1258,7 +1278,7 @@ function clima(){
   <p class="tiny">Encendido y apagado</p><section class="grid2" style="margin-bottom:20px">${units.map(e=>climatePowerCard(e,titleOf(e))).join("")||`<div class="empty">No hay aires de casa.</div>`}</section>
   <p class="tiny">Temperatura y modo</p><section class="grid2" style="margin-bottom:20px">${units.map(e=>climateCard(e,titleOf(e), e.entity_id===h?.entity_id?16:18, 30, false)).join("")||`<div class="empty">No hay ajustes de aire.</div>`}</section>
   <p class="tiny">Ventiladores</p><section class="grid2" style="margin-bottom:20px">${fans.map(fanCard).join("")||`<div class="empty">No hay ventiladores de casa.</div>`}</section>
-  <p class="tiny">Purificadores</p><section class="grid2">${purifiers.map(purifierCard).join("")||`<div class="empty">No hay purificadores.</div>`}</section>`;
+  <p class="tiny">Purificadores</p><section class="grid2">${purifiers.map(({e,label})=>purifierCard(e,label)).join("")||`<div class="empty">No hay purificadores.</div>`}</section>`;
 }
 
 function sensorCard(e,label,suffix=""){
@@ -1307,9 +1327,52 @@ function poolLightCard(e){
     ${effects.length?`<div class="modes" style="margin-top:12px;justify-content:flex-start">${effects.map(m=>`<button class="${cur===m?"on":""}" data-act="effect" data-id="${esc(e.entity_id)}" data-mode="${esc(m)}">${esc(m)}</button>`).join("")}</div>`:""}
   </article>`;
 }
+function poolHeater(list){
+  const cs=by(list,"climate").filter(e=>!car(e) && /piscina|pool|calentador/.test(blob(e)));
+  return cs.find(e=>/calentador/.test(blob(e))) || cs.find(e=>/calefaccion/.test(blob(e)) || (e.attributes.hvac_modes||[]).includes("heat")) || null;
+}
+function formatTemp(t){
+  const n=Number(t);
+  if(!Number.isFinite(n)) return "—";
+  return (Math.round(n*10)%10===0?n.toFixed(0):n.toFixed(1))+"°";
+}
+function tempSpan(e){
+  const min=Number(e.attributes.min_temp??20);
+  const max=Number(e.attributes.max_temp??40);
+  const step=Number(e.attributes.target_temp_step??1)||1;
+  return {min:Number.isFinite(min)?min:20, max:Number.isFinite(max)&&max>min?max:40, step:step>0?step:1};
+}
+function tempFromPct(pct, min, max, step){
+  const raw=min+(Number(pct)/100)*(max-min);
+  const snapped=Math.round((raw-min)/step)*step+min;
+  const clamped=Math.max(min, Math.min(max, snapped));
+  const dec=(String(step).split(".")[1]||"").length;
+  return Number(clamped.toFixed(Math.min(dec,1)));
+}
+function tempDial(e){
+  const {min,max,step}=tempSpan(e);
+  const t=Number(e.attributes.temperature??min);
+  const p=max>min?Math.max(0,Math.min(100,Math.round((t-min)/(max-min)*100))):0;
+  const c=(2*Math.PI*46).toFixed(2);
+  const dash=(p/100*2*Math.PI*46).toFixed(2);
+  return `<div class="dial" data-dial="${esc(e.entity_id)}" data-kind="temp" data-min="${min}" data-max="${max}" data-step="${step}" data-temp="${t}" data-val="${p}" role="slider" aria-valuemin="${min}" aria-valuemax="${max}" aria-valuenow="${t}" aria-label="Temperatura del calentador">
+    <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="46"></circle><circle class="arc" cx="60" cy="60" r="46" stroke-dasharray="${dash} ${c}"></circle></svg>
+    <b>${formatTemp(t)}</b>
+  </div>`;
+}
+function poolHeaterCard(e){
+  if(!e) return `<div class="empty">No encuentro el calentador de la piscina.</div>`;
+  const off=e.state==="off";
+  const now=e.attributes.current_temperature;
+  return `<article class="card">
+    <div class="row"><div><h3 style="margin:0">Calentador piscina</h3><p class="muted">${off?"Apagado":esc(hvacLabel(e.state))}${now!=null?" · ahora "+esc(String(now))+"°":""}</p></div>${tog(!off,`data-act="power" data-id="${esc(e.entity_id)}"`)}</div>
+    ${tempDial(e)}
+  </article>`;
+}
 function piscina(){
   const pump=byId(state.entities,POOL_IDS.pump), ph=byId(state.entities,POOL_IDS.ph), temperature=byId(state.entities,POOL_IDS.temperature), light=byId(state.entities,POOL_IDS.light);
   const autoP=autoSw(state.entities,"automatizacion","piscina");
+  const heater=poolHeater(state.entities);
   const periods=poolPeriods(state.entities);
   const anyPeriod=periods.some(s=>s.start||s.end);
   return `${sceneBanner("piscina","Exterior","Piscina","Filtración, horarios y luz.")}
@@ -1318,7 +1381,9 @@ function piscina(){
     <section class="grid3" style="margin-bottom:20px">${anyPeriod?periods.map((s,i)=>periodCard(i+1,s)).join(""):`<div class="empty">No encuentro los horarios de inicio y fin de los tres periodos.</div>`}</section>
     <p class="tiny">Luz</p>
     <section class="grid2" style="margin-bottom:20px">${poolLightCard(light)}</section>
-    <section class="grid2" style="margin-bottom:24px">${sensorCard(ph,"pH")}${sensorCard(temperature,"Temperatura del agua")}</section>
+    <section class="grid2" style="margin-bottom:20px">${sensorCard(ph,"pH")}${sensorCard(temperature,"Temperatura del agua")}</section>
+    <p class="tiny">Calentador piscina</p>
+    <section class="grid2" style="margin-bottom:20px">${poolHeaterCard(heater)}</section>
     <p class="tiny">Bomba</p><section class="grid2">
       ${pump?`<article class="card row pool-control"><div><p class="tiny">Filtración</p><h3 style="margin:0">Bomba de filtrado</h3><p class="muted">${on(pump)?"Encendida":"Apagada"}</p></div>${tog(on(pump),`data-act="toggle" data-id="${esc(pump.entity_id)}"`)}</article>`:`<div class="empty">No encuentro la bomba de filtrado.</div>`}
     </section>`;
@@ -1545,6 +1610,10 @@ document.addEventListener("click", ev=>{
     if (e.state==="off") act(e,"set_hvac_mode",{hvac_mode:preferredHvac(e)});
     else {rememberHvac(e);act(e,"set_hvac_mode",{hvac_mode:"off"});}
   }
+  if (t.dataset.act==="coverpos"){
+    const e=ent(t.dataset.id); if(!e) return;
+    act(e,"set_cover_position",{position:Number(t.dataset.pos)});
+  }
   if (t.dataset.act==="preset"){
     const e=ent(t.dataset.id); if(!e) return;
     if (dom(e)==="select") act(e,"select_option",{option:t.dataset.mode});
@@ -1587,12 +1656,21 @@ function dialFromEvent(el, ev){
   return Math.max(0,Math.min(100,Math.round(deg/360*100)));
 }
 function paintDial(el, v){
+  const pct=Math.max(0,Math.min(100,Math.round(v)));
   const c=2*Math.PI*46;
   const arc=el.querySelector(".arc");
-  if(arc) arc.setAttribute("stroke-dasharray", (v/100*c).toFixed(2)+" "+c.toFixed(2));
-  const b=el.querySelector("b"); if(b) b.textContent=v+"%";
-  el.dataset.val=String(v);
-  el.setAttribute("aria-valuenow", String(v));
+  if(arc) arc.setAttribute("stroke-dasharray", (pct/100*c).toFixed(2)+" "+c.toFixed(2));
+  const b=el.querySelector("b");
+  if(el.dataset.kind==="temp"){
+    const t=tempFromPct(pct, Number(el.dataset.min), Number(el.dataset.max), Number(el.dataset.step)||1);
+    if(b) b.textContent=formatTemp(t);
+    el.dataset.temp=String(t);
+    el.setAttribute("aria-valuenow", String(t));
+  } else {
+    if(b) b.textContent=pct+"%";
+    el.setAttribute("aria-valuenow", String(pct));
+  }
+  el.dataset.val=String(pct);
 }
 let dialDrag=null;
 document.addEventListener("pointerdown", ev=>{
@@ -1613,7 +1691,11 @@ document.addEventListener("pointerup", ev=>{
   const v=dialFromEvent(dial, ev);
   paintDial(dial, v);
   const e=ent(dial.dataset.dial);
-  if(e) act(e,"set_cover_position",{position:v});
+  if(!e) return;
+  if(dial.dataset.kind==="temp"){
+    const t=Number(dial.dataset.temp);
+    if(Number.isFinite(t)) act(e,"set_temperature",{temperature:t});
+  } else act(e,"set_cover_position",{position:v});
 });
 document.addEventListener("pointercancel", ()=>{ dialDrag=null; });
 document.addEventListener("submit", ev=>{
